@@ -1,0 +1,12 @@
+# built by make_app.py
+Coverage.app/
+_icon/
+
+# local data, if you ever point COVERAGE_DATA_DIR at the checkout
+data.json
+data.json.tmp
+backups/
+.port
+
+__pycache__/
+*.pyc

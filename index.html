@@ -374,7 +374,14 @@ function ssGet(k){ try { return sessionStorage.getItem(k) || ""; } catch(e){ ret
 function ssSet(k,v){ try { sessionStorage.setItem(k,v); } catch(e){} }
 function esc(s){ return String(s==null?"":s); }
 
-/* ---------- persistence: document store, with a local fallback ---------- */
+/* ---------- persistence: a real file on disk, then the page's own store ----------
+   Three tiers, tried in that order, most durable first:
+     "server"  — served by server.py: records land in data.json, with backups
+     "db"      — published as an artifact: records live in its private store
+     "browser" — opened straight off disk: localStorage only              */
+var API = "api/data";          /* relative — same origin as the page */
+var mode = "none";             /* "server" | "db" | "browser" | "none" */
+var DATA_PATH = "";            /* filled in when a server is answering */
 var db = null, dirty = false, saving = false, timer = null, ready = false;
 var LS = "coverage.state.v1";
 var flag = $("saveflag");
@@ -401,6 +408,13 @@ function assemble(meta, contacts, firms){
     firms: firms.list || []
   };
 }
+function looksLikeState(j){
+  return j && typeof j === "object" && Array.isArray(j.contacts) && Array.isArray(j.firms);
+}
+function browserWorks(){
+  try { localStorage.setItem("__t","1"); localStorage.removeItem("__t"); return true; }
+  catch(e){ return false; }
+}
 function lsLoad(){
   try {
     var raw = localStorage.getItem(LS);
@@ -417,15 +431,35 @@ function markWritten(){
 }
 
 function boot(){
+  return fetch(API, {headers:{"Accept":"application/json"}}).then(function(r){
+    if (!r.ok) throw new Error("http " + r.status);
+    return r.json();
+  }).then(function(j){
+    mode = "server";
+    /* the settings tab shows where the file actually is */
+    fetch("api/info").then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(info){ if (info && info.dataFile){ DATA_PATH = info.dataFile;
+        if (route === "settings") render(); } }).catch(function(){});
+    if (looksLikeState(j) && !dirty){
+      state = j;
+      ready = true;
+      setFlag("saved");
+      return;
+    }
+    /* first run, or the viewer edited while we were still loading — write ours */
+    ready = true; dirty = true;
+    return flush();
+  }).catch(dbBoot);
+}
+
+/* No server answered: the artifact's own document store, else the browser. */
+function dbBoot(){
   var p = (typeof window.claude !== "undefined" && window.claude && window.claude.use)
     ? window.claude.use("db") : Promise.resolve(null);
   return p.catch(function(){ return null; }).then(function(d){
     db = d;
-    if (!db){
-      lsLoad(); ready = true;
-      setFlag("saved locally", "");
-      return;
-    }
+    if (!db) return browserBoot();
+    mode = "db";
     return Promise.all([
       db.doc("app/meta").get(), db.doc("app/contacts").get(), db.doc("app/firms").get()
     ]).then(function(sn){
@@ -444,9 +478,15 @@ function boot(){
         return writeAll().then(function(){ setFlag("saved"); });
       }
     });
-  }).catch(function(){
-    db = null; lsLoad(); ready = true; setFlag("saved locally", "");
-  });
+  }).catch(browserBoot);
+}
+
+function browserBoot(){
+  db = null;
+  mode = browserWorks() ? "browser" : "none";
+  lsLoad(); ready = true;
+  if (mode === "browser") setFlag("saved in browser", "");
+  else setFlag("not saving", "err");
 }
 
 function writeAll(){
@@ -468,17 +508,39 @@ function save(){
   timer = setTimeout(flush, 700);
 }
 function flush(){
-  if (!dirty || saving || !ready) return;
-  if (!db){ dirty = !lsSave(); setFlag(dirty ? "not saved \u2014 storage blocked" : "saved locally", dirty ? "err" : ""); return; }
-  saving = true; setFlag("saving…", "on");
-  writeAll().then(function(){
-    saving = false; dirty = false; setFlag("saved");
-  }).catch(function(e){
-    saving = false;
-    var code = e && e.code;
-    if (code === "unavailable"){ setFlag("retrying…", "err"); setTimeout(flush, 2500); }
-    else setFlag("not saved" + (code ? " (" + code + ")" : ""), "err");
-  });
+  if (!dirty || saving || !ready) return Promise.resolve();
+  if (mode === "browser"){
+    dirty = !lsSave();
+    setFlag(dirty ? "not saved" : "saved in browser", dirty ? "err" : "");
+    return Promise.resolve();
+  }
+  if (mode === "server"){
+    saving = true; setFlag("saving…", "on");
+    return fetch(API, {
+      method: "PUT",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify(state)
+    }).then(function(r){
+      if (!r.ok) throw new Error("http " + r.status);
+      saving = false; dirty = false; setFlag("saved");
+    }).catch(function(){
+      saving = false;
+      setFlag("not saved — is the server running?", "err");
+    });
+  }
+  if (mode === "db"){
+    saving = true; setFlag("saving…", "on");
+    return writeAll().then(function(){
+      saving = false; dirty = false; setFlag("saved");
+    }).catch(function(e){
+      saving = false;
+      var code = e && e.code;
+      if (code === "unavailable"){ setFlag("retrying…", "err"); setTimeout(flush, 2500); }
+      else setFlag("not saved" + (code ? " (" + code + ")" : ""), "err");
+    });
+  }
+  setFlag("not saved", "err");
+  return Promise.resolve();
 }
 window.addEventListener("beforeunload", function(e){
   if (dirty){ e.preventDefault(); e.returnValue = ""; }
@@ -1358,8 +1420,26 @@ function viewSettings(v){
       navigator.clipboard.writeText(lines.join("\n")).then(function(){ toast("CSV copied"); });
     }})
   ]));
+  var STORE_HINT = {
+    server:  "Your records live in the file below. Every save also drops a timestamped copy into backups/ alongside it, keeping the last 40. Nothing leaves your machine.",
+    db:      "Your records live in this page's own private store, not in the page file — republishing the app never touches them. Copy a JSON backup before any big cleanup.",
+    browser: "Your records are saved in this browser only. Run server.py, or launch Coverage.app, to keep them in a real file on disk instead.",
+    none:    "This browser is blocking storage, so nothing is being saved. Run server.py, or launch Coverage.app, to keep your records in a file on disk."
+  };
   c4.appendChild(h("div",{class:"hint",style:"color:var(--muted)",
-    text:"Your records live in this page's own private store, not in the page file — republishing the app never touches them. Copy a JSON backup before any big cleanup."}));
+    text: STORE_HINT[mode] || STORE_HINT.none}));
+  if (DATA_PATH){
+    c4.appendChild(h("div",{class:"f wide"},[
+      h("label",{text:"Data file"}),
+      h("div",{class:"mono",style:"font-size:.78rem;color:var(--muted);word-break:break-all;padding:7px 9px;background:var(--paper);border:1px solid var(--rule);border-radius:4px",
+        text:DATA_PATH})
+    ]));
+    c4.appendChild(h("div",{class:"filters"},[
+      h("button",{class:"btn sm",text:"Copy path",onclick:function(){
+        navigator.clipboard.writeText(DATA_PATH).then(function(){ toast("Path copied"); });
+      }})
+    ]));
+  }
   var imp = h("textarea",{placeholder:"Paste a JSON backup here\u2026"});
   imp.style.minHeight = "70px";
   c4.appendChild(h("div",{class:"f wide"},[h("label",{text:"Restore from backup"}), imp]));
