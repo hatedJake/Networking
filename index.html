@@ -314,9 +314,17 @@ td .sub{display:block;font-size:.72rem;color:var(--faint);font-weight:400;
   text-transform:uppercase;color:var(--faint)}
 .hr{height:1px;background:var(--rule);border:0;margin:0}
 @media(max-width:620px){
-  .topbar-in{gap:8px;padding:0 12px}
+  .topbar-in{gap:8px;padding:0 12px;flex-wrap:wrap;height:auto}
   .brand{display:none}
-  nav.tabs button{padding:0 10px;font-size:.9rem}
+  nav.tabs button{padding:0 10px;font-size:.9rem;flex:0 0 auto}
+  /* five tabs do not fit beside the actions on a phone, so the strip drops to
+     its own full-width row and scrolls rather than widening the header */
+  .topbar-right{order:1;height:48px}
+  nav.tabs{order:2;flex:1 0 100%;margin-left:0;height:42px;
+    border-top:1px solid var(--rule);
+    min-width:0;overflow-x:auto;overflow-y:hidden;
+    scrollbar-width:none;-ms-overflow-style:none}
+  nav.tabs::-webkit-scrollbar{display:none}
   .page{padding:16px 12px 80px}
   .tablewrap{max-height:none;overflow:auto hidden;overflow-x:auto}
   thead th{position:static}
@@ -535,7 +543,7 @@ function needsAction(c){
 function firmContacts(fid){ return state.contacts.filter(function(c){ return c.firmId === fid; }); }
 
 /* ---------- routing ---------- */
-var TABS = [["contacts","Contacts"],["firms","Firms"],["compose","Compose"],["settings","Settings"]];
+var TABS = [["contacts","Contacts"],["firms","Firms"],["compose","Compose"],["templates","Templates"],["settings","Settings"]];
 var route = ssGet("cov.tab") || "contacts";
 var ui = {
   q:"", stage:"", prio:"", firm:"", needs:false, sort:"auto", desc:false,
@@ -561,6 +569,7 @@ function render(){
   if (route === "contacts") viewContacts(v);
   else if (route === "firms") viewFirms(v);
   else if (route === "compose") viewCompose(v);
+  else if (route === "templates") viewTemplates(v);
   else viewSettings(v);
 }
 
@@ -1308,6 +1317,38 @@ function viewCompose(v){
     text:"Rewrite the marked custom line before sending — it is the only part of the email that proves you did not mass-blast it. “Log as sent” advances the stage, stamps today, bumps the touch count and writes the subject into the notes log."}));
 }
 
+/* ================= TEMPLATES ================= */
+function viewTemplates(v){
+  v.appendChild(h("div",{class:"sectitle"},[h("h2",{text:"Email templates"}),h("span",{class:"e",text:"{{merge fields}} pull from the contact, their firm, and your profile"})]));
+  var c = h("div",{class:"setcard"});
+  c.appendChild(h("div",{class:"hint",style:"color:var(--muted)",
+    text:"Available: FirstName LastName Firm Group Title Office Connection School GradYear Deal Sectors CallDate MyName MySchool MyYear MyMajor MyGroups"}));
+  state.templates.forEach(function(t, i){
+    var box = h("div",{class:"tmpl-edit"});
+    box.appendChild(field("Template name", t.name, function(x){ t.name=x; save(); render(); }, {wide:true}));
+    box.appendChild(field("Subject", t.subject, function(x){ t.subject=x; save(); }, {wide:true}));
+    box.appendChild(field("Body", t.body, function(x){ t.body=x; save(); }, {type:"textarea", wide:true}));
+    box.appendChild(field("Custom line (must be rewritten before sending)", t.customLine, function(x){ t.customLine=x; save(); }, {wide:true}));
+    box.appendChild(h("div",{class:"filters"},[
+      h("button",{class:"btn sm",text:"Use in Compose",onclick:function(){
+        ui.composeTpl = t.id; ui.draft = null; go("compose");
+      }}),
+      h("span",{class:"spacer"}),
+      h("button",{class:"btn sm danger",text:"Delete template",onclick:function(){
+        if (state.templates.length < 2){ toast("Keep at least one"); return; }
+        if (!confirm("Delete “" + t.name + "”?")) return;
+        state.templates.splice(i,1); save(); render();
+      }})
+    ]));
+    c.appendChild(box);
+  });
+  c.appendChild(h("button",{class:"btn",text:"+ New template",onclick:function(){
+    state.templates.push({id:uid("t"), name:"Untitled", subject:"", body:"Hi {{FirstName}},\n\n", customLine:""});
+    save(); render();
+  }}));
+  v.appendChild(c);
+}
+
 /* ================= SETTINGS ================= */
 function viewSettings(v){
   var p = state.profile;
@@ -1324,31 +1365,6 @@ function viewSettings(v){
     state.settings.bumpDays = parseInt(x,10)||7; save(); }, {type:"number"}));
   c1.appendChild(g);
   v.appendChild(c1);
-
-  v.appendChild(h("div",{class:"sectitle"},[h("h2",{text:"Templates"}),h("span",{class:"e",text:"{{merge fields}} pull from the contact, their firm, and your profile"})]));
-  var c2 = h("div",{class:"setcard"});
-  c2.appendChild(h("div",{class:"hint",style:"color:var(--muted)",
-    text:"Available: FirstName LastName Firm Group Title Office Connection School GradYear Deal Sectors CallDate MyName MySchool MyYear MyMajor MyGroups"}));
-  state.templates.forEach(function(t, i){
-    var box = h("div",{class:"tmpl-edit"});
-    box.appendChild(field("Template name", t.name, function(x){ t.name=x; save(); render(); }, {wide:true}));
-    box.appendChild(field("Subject", t.subject, function(x){ t.subject=x; save(); }, {wide:true}));
-    box.appendChild(field("Body", t.body, function(x){ t.body=x; save(); }, {type:"textarea", wide:true}));
-    box.appendChild(field("Custom line (must be rewritten before sending)", t.customLine, function(x){ t.customLine=x; save(); }, {wide:true}));
-    box.appendChild(h("div",{class:"filters"},[
-      h("button",{class:"btn sm danger",text:"Delete template",onclick:function(){
-        if (state.templates.length < 2){ toast("Keep at least one"); return; }
-        if (!confirm("Delete “" + t.name + "”?")) return;
-        state.templates.splice(i,1); save(); render();
-      }})
-    ]));
-    c2.appendChild(box);
-  });
-  c2.appendChild(h("button",{class:"btn",text:"+ New template",onclick:function(){
-    state.templates.push({id:uid("t"), name:"Untitled", subject:"", body:"Hi {{FirstName}},\n\n", customLine:""});
-    save(); render();
-  }}));
-  v.appendChild(c2);
 
   v.appendChild(h("div",{class:"sectitle"},[h("h2",{text:"Stages"}),h("span",{class:"e",text:"rename or reorder — one per line"})]));
   var c3 = h("div",{class:"setcard"});
