@@ -1,8 +1,10 @@
 <title>Coverage</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Spectral:wght@400;600;700&family=Public+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<!-- Spectral, Public Sans and IBM Plex Mono, self-hosted under assets/.
+     Deliberately not the Google Fonts CDN: a stylesheet the browser cannot
+     reach blocks every inline script behind it, so with no network the app
+     came up as a blank page instead of an unstyled one. -->
+<link rel="stylesheet" href="assets/fonts.css">
 
 <style>
 :root{
