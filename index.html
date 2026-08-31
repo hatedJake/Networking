@@ -1,0 +1,1397 @@
+<title>Coverage</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Spectral:wght@400;600;700&family=Public+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+
+<style>
+:root{
+  --paper:#F1F3F6; --card:#FFFFFF; --sunk:#E8ECF1; --hover:#EDF1F5;
+  --ink:#0E1520; --muted:#54626F; --faint:#7C8896;
+  --rule:#D3DAE3; --rule-soft:#E2E7ED;
+  --brass:#8A671C; --brass-wash:#F2EBDA;
+  --verdigris:#1A6350; --verdigris-wash:#E0EFE9;
+  --amber:#8A5A12; --amber-wash:#F7EBD6;
+  --crimson:#96292B; --crimson-wash:#F7E4E3;
+  --slate:#3A5470; --slate-wash:#E3E9F1;
+  --shadow:0 1px 2px rgba(14,21,32,.05), 0 8px 24px -16px rgba(14,21,32,.30);
+  --drawer-shadow:-8px 0 40px -12px rgba(14,21,32,.28);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#0B1017; --card:#121A23; --sunk:#18222D; --hover:#1B2632;
+    --ink:#E3E9F0; --muted:#98A6B6; --faint:#6C7A8B;
+    --rule:#26323F; --rule-soft:#1C2733;
+    --brass:#D6AB55; --brass-wash:#292217;
+    --verdigris:#5FBFA2; --verdigris-wash:#11261F;
+    --amber:#D8A34D; --amber-wash:#2A2014;
+    --crimson:#E28B87; --crimson-wash:#2B1817;
+    --slate:#9FB6CE; --slate-wash:#1A242F;
+    --shadow:0 1px 2px rgba(0,0,0,.45), 0 12px 32px -20px rgba(0,0,0,.9);
+    --drawer-shadow:-8px 0 40px -12px rgba(0,0,0,.7);
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#0B1017; --card:#121A23; --sunk:#18222D; --hover:#1B2632;
+  --ink:#E3E9F0; --muted:#98A6B6; --faint:#6C7A8B;
+  --rule:#26323F; --rule-soft:#1C2733;
+  --brass:#D6AB55; --brass-wash:#292217;
+  --verdigris:#5FBFA2; --verdigris-wash:#11261F;
+  --amber:#D8A34D; --amber-wash:#2A2014;
+  --crimson:#E28B87; --crimson-wash:#2B1817;
+  --slate:#9FB6CE; --slate-wash:#1A242F;
+  --shadow:0 1px 2px rgba(0,0,0,.45), 0 12px 32px -20px rgba(0,0,0,.9);
+  --drawer-shadow:-8px 0 40px -12px rgba(0,0,0,.7);
+}
+
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--paper); color:var(--ink);
+  font-family:"Public Sans","Helvetica Neue",Arial,sans-serif;
+  font-size:15px; line-height:1.55; -webkit-font-smoothing:antialiased;
+}
+.mono,.m{font-family:"IBM Plex Mono",ui-monospace,Menlo,monospace}
+h1,h2,h3{font-family:Spectral,Georgia,serif;margin:0;text-wrap:balance;font-weight:600}
+h2{font-size:1.5rem;letter-spacing:-.01em}
+h3{font-size:1.05rem}
+button{font-family:inherit;font-size:inherit;cursor:pointer}
+input,select,textarea{font-family:inherit;font-size:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--brass);outline-offset:2px;border-radius:2px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+
+/* ============ chrome ============ */
+.topbar{
+  position:sticky;top:0;z-index:40;background:var(--card);
+  border-bottom:1px solid var(--rule);
+}
+.topbar-in{
+  max-width:1400px;margin:0 auto;padding:0 20px;
+  display:flex;align-items:center;gap:22px;height:52px;
+}
+.brand{
+  font-family:"IBM Plex Mono",monospace;font-size:.72rem;font-weight:600;
+  letter-spacing:.2em;text-transform:uppercase;white-space:nowrap;
+}
+.brand b{color:var(--brass);font-weight:600}
+nav.tabs{display:flex;gap:2px;height:100%;margin-left:6px}
+nav.tabs button{
+  background:none;border:0;padding:0 15px;height:100%;color:var(--muted);
+  font-weight:500;border-bottom:2px solid transparent;letter-spacing:.005em;
+}
+nav.tabs button:hover{color:var(--ink)}
+nav.tabs button[aria-current="true"]{color:var(--ink);border-bottom-color:var(--brass)}
+.topbar-right{margin-left:auto;display:flex;align-items:center;gap:12px}
+#saveflag{
+  font-family:"IBM Plex Mono",monospace;font-size:.66rem;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--faint);white-space:nowrap;
+}
+#saveflag.on{color:var(--brass)}
+#saveflag.err{color:var(--crimson)}
+
+.page{max-width:1400px;margin:0 auto;padding:22px 20px 90px}
+
+/* ============ buttons ============ */
+.btn{
+  border:1px solid var(--rule);background:var(--card);color:var(--ink);
+  border-radius:4px;padding:6px 12px;font-weight:500;font-size:.86rem;
+  white-space:nowrap;transition:background .12s,border-color .12s;
+}
+.btn:hover{background:var(--hover);border-color:var(--faint)}
+.btn.primary{background:var(--ink);color:var(--card);border-color:var(--ink)}
+:root[data-theme="dark"] .btn.primary{color:var(--paper)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .btn.primary{color:var(--paper)}}
+.btn.primary:hover{opacity:.86;background:var(--ink)}
+.btn.sm{padding:3px 9px;font-size:.78rem}
+.btn.ghost{border-color:transparent;background:none;color:var(--muted)}
+.btn.ghost:hover{background:var(--hover);color:var(--ink)}
+.btn.danger{color:var(--crimson)}
+
+/* ============ kpis ============ */
+.kpis{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:1px;
+  background:var(--rule);border:1px solid var(--rule);border-radius:5px;
+  overflow:hidden;margin-bottom:18px;
+}
+.kpi{background:var(--card);padding:13px 16px}
+.kpi .n{font-family:"IBM Plex Mono",monospace;font-size:1.42rem;font-weight:600;
+  letter-spacing:-.02em;font-variant-numeric:tabular-nums;line-height:1.15}
+.kpi .k{font-family:"IBM Plex Mono",monospace;font-size:.6rem;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--faint);margin-top:4px}
+.kpi.alert .n{color:var(--crimson)}
+
+/* ============ filter bar ============ */
+.filters{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
+.filters input[type=search],.filters select{
+  background:var(--card);border:1px solid var(--rule);border-radius:4px;
+  padding:6px 10px;font-size:.86rem;
+}
+.filters input[type=search]{min-width:210px;flex:1 1 210px;max-width:340px}
+.chip{
+  border:1px solid var(--rule);background:var(--card);border-radius:4px;
+  padding:5px 11px;font-size:.8rem;font-weight:500;color:var(--muted);
+}
+.chip[aria-pressed="true"]{background:var(--brass-wash);border-color:var(--brass);color:var(--brass)}
+.spacer{flex:1}
+.count{font-family:"IBM Plex Mono",monospace;font-size:.72rem;color:var(--faint);
+  letter-spacing:.08em;white-space:nowrap}
+
+/* ============ tables ============ */
+.tablewrap{overflow:auto;max-height:calc(100vh - 232px);min-height:260px;border:1px solid var(--rule);border-radius:5px;background:var(--card);box-shadow:var(--shadow);overscroll-behavior:contain}
+table{border-collapse:collapse;width:100%;font-size:.88rem}
+thead th{
+  text-align:left;font-family:"IBM Plex Mono",monospace;font-size:.62rem;
+  letter-spacing:.13em;text-transform:uppercase;color:var(--faint);font-weight:500;
+  padding:9px 14px;border-bottom:1px solid var(--rule);background:var(--sunk);
+  white-space:nowrap;position:sticky;top:0;z-index:5;
+}
+thead th.sortable{cursor:pointer;user-select:none}
+thead th.sortable:hover{color:var(--ink)}
+thead th .car{color:var(--brass)}
+tbody td{padding:9px 14px;border-bottom:1px solid var(--rule-soft);white-space:nowrap;vertical-align:middle}
+tbody tr{cursor:pointer}
+tbody tr:hover td{background:var(--hover)}
+tbody tr:last-child td{border-bottom:0}
+td.nm{font-weight:600}
+td .sub{display:block;font-size:.72rem;color:var(--faint);font-weight:400;
+  font-family:"IBM Plex Mono",monospace;letter-spacing:.02em}
+.num{font-variant-numeric:tabular-nums;font-family:"IBM Plex Mono",monospace;font-size:.8rem}
+.empty{padding:44px 20px;text-align:center;color:var(--faint);font-size:.9rem}
+
+/* ============ pills / dots ============ */
+.pill{
+  display:inline-flex;align-items:center;gap:5px;font-family:"IBM Plex Mono",monospace;
+  font-size:.66rem;font-weight:500;letter-spacing:.04em;padding:2px 8px;
+  border-radius:3px;white-space:nowrap;border:1px solid transparent;
+}
+.p-grey{background:var(--sunk);color:var(--muted);border-color:var(--rule)}
+.p-slate{background:var(--slate-wash);color:var(--slate);border-color:var(--slate)}
+.p-brass{background:var(--brass-wash);color:var(--brass);border-color:var(--brass)}
+.p-amber{background:var(--amber-wash);color:var(--amber);border-color:var(--amber)}
+.p-green{background:var(--verdigris-wash);color:var(--verdigris);border-color:var(--verdigris)}
+.p-red{background:var(--crimson-wash);color:var(--crimson);border-color:var(--crimson)}
+.dot{width:8px;height:8px;border-radius:50%;display:inline-block;flex:0 0 auto}
+.d1{background:var(--crimson)} .d2{background:var(--brass)} .d3{background:var(--faint)}
+.stale{color:var(--crimson);font-family:"IBM Plex Mono",monospace;font-size:.74rem}
+.fresh{color:var(--faint);font-family:"IBM Plex Mono",monospace;font-size:.74rem}
+
+/* ============ drawer ============ */
+.scrim{position:fixed;inset:0;background:rgba(14,21,32,.34);z-index:50;backdrop-filter:blur(1.5px)}
+.drawer{
+  position:fixed;top:0;right:0;bottom:0;width:min(560px,100vw);z-index:51;
+  background:var(--card);border-left:1px solid var(--rule);box-shadow:var(--drawer-shadow);
+  display:flex;flex-direction:column;
+}
+.drawer-head{
+  padding:18px 22px 14px;border-bottom:1px solid var(--rule);
+  display:flex;align-items:flex-start;gap:14px;
+}
+.drawer-head h2{line-height:1.2}
+.drawer-head .sub{font-family:"IBM Plex Mono",monospace;font-size:.74rem;color:var(--faint);
+  letter-spacing:.04em;margin-top:5px;display:block}
+.drawer-body{overflow-y:auto;padding:18px 22px 40px;flex:1;display:flex;flex-direction:column;gap:20px}
+.drawer-foot{
+  border-top:1px solid var(--rule);padding:12px 22px;display:flex;gap:8px;
+  align-items:center;background:var(--sunk);
+}
+.xbtn{background:none;border:0;color:var(--faint);font-size:1.35rem;line-height:1;
+  padding:2px 6px;margin-left:auto;border-radius:3px}
+.xbtn:hover{color:var(--ink);background:var(--hover)}
+
+/* ============ forms ============ */
+.fgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
+.f{display:flex;flex-direction:column;gap:4px;min-width:0}
+.f.wide{grid-column:1/-1}
+.f label{font-family:"IBM Plex Mono",monospace;font-size:.62rem;letter-spacing:.13em;
+  text-transform:uppercase;color:var(--faint)}
+.f input,.f select,.f textarea{
+  background:var(--paper);border:1px solid var(--rule);border-radius:4px;
+  padding:7px 9px;font-size:.9rem;width:100%;
+}
+.f textarea{resize:vertical;min-height:64px;line-height:1.5}
+.f input:focus,.f select:focus,.f textarea:focus{background:var(--card);border-color:var(--brass);outline:none}
+.f .hint{font-size:.72rem;color:var(--faint)}
+.fieldset{display:flex;flex-direction:column;gap:11px}
+.fieldset > .lg{
+  font-family:"IBM Plex Mono",monospace;font-size:.62rem;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--brass);padding-bottom:6px;border-bottom:1px solid var(--rule);
+}
+.checkline{display:flex;align-items:center;gap:8px;font-size:.88rem}
+.checkline input{width:15px;height:15px;accent-color:var(--brass)}
+
+/* ============ modal ============ */
+.modal{
+  position:fixed;z-index:60;top:50%;left:50%;transform:translate(-50%,-50%);
+  width:min(680px,calc(100vw - 28px));max-height:calc(100vh - 48px);
+  background:var(--card);border:1px solid var(--rule);border-radius:7px;
+  box-shadow:0 24px 70px -18px rgba(14,21,32,.5);display:flex;flex-direction:column;
+}
+.modal-head{padding:18px 22px 12px;border-bottom:1px solid var(--rule);display:flex;align-items:center;gap:12px}
+.modal-body{padding:20px 22px;overflow-y:auto;display:flex;flex-direction:column;gap:16px}
+.modal-foot{padding:13px 22px;border-top:1px solid var(--rule);display:flex;gap:8px;
+  align-items:center;background:var(--sunk);border-radius:0 0 7px 7px}
+.bigname input{font-size:1.15rem;padding:10px 12px;font-family:Spectral,Georgia,serif}
+
+/* ============ notes ============ */
+.notes{display:flex;flex-direction:column;gap:0}
+.note{padding:10px 0;border-bottom:1px solid var(--rule-soft);display:flex;gap:12px;align-items:flex-start}
+.note:last-child{border-bottom:0}
+.note .d{font-family:"IBM Plex Mono",monospace;font-size:.68rem;color:var(--faint);
+  flex:0 0 62px;padding-top:3px;letter-spacing:.03em}
+.note .t{font-size:.89rem;white-space:pre-wrap;flex:1;min-width:0;word-break:break-word}
+.note .del{opacity:0;background:none;border:0;color:var(--faint);font-size:.9rem;padding:0 4px}
+.note:hover .del{opacity:1}
+.note .del:hover{color:var(--crimson)}
+
+/* ============ stage rail ============ */
+.rail{display:flex;flex-wrap:wrap;gap:5px}
+.rail button{
+  border:1px solid var(--rule);background:var(--card);border-radius:3px;
+  padding:3px 8px;font-family:"IBM Plex Mono",monospace;font-size:.66rem;
+  color:var(--muted);letter-spacing:.03em;
+}
+.rail button:hover{border-color:var(--brass);color:var(--brass)}
+.rail button.on{background:var(--brass);border-color:var(--brass);color:var(--card)}
+:root[data-theme="dark"] .rail button.on{color:var(--paper)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .rail button.on{color:var(--paper)}}
+
+/* ============ compose ============ */
+.composewrap{display:grid;grid-template-columns:minmax(0,1fr);gap:18px}
+@media(min-width:940px){.composewrap{grid-template-columns:236px minmax(0,1fr);align-items:start}}
+.tmpl-list{border:1px solid var(--rule);border-radius:5px;background:var(--card);overflow:hidden;box-shadow:var(--shadow)}
+.tmpl-list .lg{
+  font-family:"IBM Plex Mono",monospace;font-size:.6rem;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--faint);padding:10px 14px;background:var(--sunk);border-bottom:1px solid var(--rule);
+}
+.tmpl{
+  display:block;width:100%;text-align:left;background:none;border:0;
+  padding:9px 14px;font-size:.86rem;color:var(--muted);border-left:2px solid transparent;
+  border-bottom:1px solid var(--rule-soft);
+}
+.tmpl:last-child{border-bottom:0}
+.tmpl:hover{background:var(--hover);color:var(--ink)}
+.tmpl.on{background:var(--card);color:var(--ink);border-left-color:var(--brass);font-weight:600}
+.mailcard{border:1px solid var(--rule);border-radius:5px;background:var(--card);box-shadow:var(--shadow);overflow:hidden}
+.mailhead{padding:14px 18px;border-bottom:1px solid var(--rule);display:flex;flex-direction:column;gap:9px}
+.mailrow{display:flex;gap:11px;align-items:baseline;font-size:.88rem;min-width:0}
+.mailrow .lbl{font-family:"IBM Plex Mono",monospace;font-size:.62rem;letter-spacing:.13em;
+  text-transform:uppercase;color:var(--faint);flex:0 0 44px}
+.mailrow .val{min-width:0;word-break:break-word}
+#mailbody{
+  padding:18px;font-size:.94rem;line-height:1.68;white-space:pre-wrap;
+  min-height:280px;border:0;width:100%;background:var(--card);resize:vertical;
+}
+#mailbody:focus{outline:none}
+.mailfoot{padding:11px 18px;border-top:1px solid var(--rule);background:var(--sunk);
+  display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.merge{background:var(--brass-wash);color:var(--brass);border-radius:2px;padding:0 3px;
+  font-family:"IBM Plex Mono",monospace;font-size:.85em}
+.warnline{color:var(--crimson);font-size:.78rem;font-family:"IBM Plex Mono",monospace}
+.okline{color:var(--verdigris);font-size:.78rem;font-family:"IBM Plex Mono",monospace}
+
+/* ============ settings ============ */
+.setcard{border:1px solid var(--rule);border-radius:5px;background:var(--card);
+  padding:20px 22px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:16px}
+.tmpl-edit{border:1px solid var(--rule-soft);border-radius:4px;padding:14px;display:flex;flex-direction:column;gap:10px}
+.gaps{display:flex;flex-direction:column;gap:0}
+.gap{display:flex;gap:12px;padding:9px 0;border-bottom:1px solid var(--rule-soft);align-items:center;font-size:.88rem}
+.gap:last-child{border-bottom:0}
+.gap .fn{font-weight:600;flex:1;min-width:0}
+.toast{
+  position:fixed;bottom:22px;left:50%;transform:translateX(-50%);z-index:80;
+  background:var(--ink);color:var(--paper);padding:9px 18px;border-radius:4px;
+  font-size:.86rem;font-weight:500;box-shadow:0 8px 30px -8px rgba(0,0,0,.5);
+}
+:root[data-theme="dark"] .toast{background:var(--card);color:var(--ink);border:1px solid var(--rule)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .toast{background:var(--card);color:var(--ink);border:1px solid var(--rule)}}
+.sectitle{display:flex;align-items:baseline;gap:12px;margin:26px 0 12px}
+.sectitle .e{font-family:"IBM Plex Mono",monospace;font-size:.62rem;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--faint)}
+.hr{height:1px;background:var(--rule);border:0;margin:0}
+@media(max-width:620px){
+  .topbar-in{gap:8px;padding:0 12px}
+  .brand{display:none}
+  nav.tabs button{padding:0 10px;font-size:.9rem}
+  .page{padding:16px 12px 80px}
+  .tablewrap{max-height:none;overflow:auto hidden;overflow-x:auto}
+  thead th{position:static}
+}
+</style>
+
+
+
+<div class="topbar">
+  <div class="topbar-in">
+    <div class="brand">Cover<b>a</b>ge</div>
+    <nav class="tabs" id="tabs"></nav>
+    <div class="topbar-right">
+      <span id="saveflag"></span>
+      <button class="btn primary" id="addbtn">+ Contact</button>
+    </div>
+  </div>
+</div>
+<main class="page" id="view"></main>
+<div id="layer"></div>
+
+<!--STATE_START--><script id="app-state" type="application/json">{"profile":{"name":"Your Name","school":"Your University","year":"2028","major":"Your Major","groups":"M&A, Restructuring, and LevFin","email":""},"settings":{"bumpDays":7,"groups":["Power & Utilities","Restructuring","Lev Fin","M&A","Generalist","Sponsors","Industrials","Healthcare","TMT","FIG","Consumer Retail","ECM","DCM","Structured Products","Natural Resources","Real Estate"]},"stages":["Not Contacted","Emailed","Follow-Up 1","Follow-Up 2","Replied","Call Scheduled","Call Done","Thank-You Sent","Advocate","Dead"],"templates":[{"id":"t1","name":"Cold intro \u2014 alum","subject":"{{MySchool}} {{MyYear}} \u2014 question about {{Group}} at {{Firm}}","body":"Hi {{FirstName}},\n\nI'm a student at {{MySchool}} studying {{MyMajor}}, and I came across your name while reading about {{Firm}}. As a fellow alum a few years ahead of me, I wanted to reach out.\n\nMy interest sits in {{MyGroups}}, so the {{Group}} team at {{Firm}} is exactly the kind of seat I'm trying to understand better before recruiting picks up.\n\nWould you have 15 minutes in the next couple of weeks for a short call? I'd love to hear how you landed in {{Group}} and what the group is actually like day to day. Happy to work entirely around your schedule.\n\nBest,\n{{MyName}}\n{{MySchool}} {{MyYear}}  |  {{MyMajor}}","customLine":"My interest sits in {{MyGroups}}, so the {{Group}} team at {{Firm}} is exactly the kind of seat I'm trying to understand better before recruiting picks up."},{"id":"t2","name":"Cold intro \u2014 shared org","subject":"{{Connection}} \u2014 {{MySchool}} student interested in {{Group}}","body":"Hi {{FirstName}},\n\nI'm a student at {{MySchool}} studying {{MyMajor}}. I found you through {{Connection}}, and given you're now in {{Group}} at {{Firm}} I wanted to introduce myself.\n\nI've been focused on {{MyGroups}}, and I'd value hearing how you think about {{Group}} from the inside rather than from a pitchbook.\n\nAny chance you'd have 15 minutes over the next two weeks? I'm flexible early mornings or evenings and happy to keep it short.\n\nBest,\n{{MyName}}\n{{MySchool}} {{MyYear}}  |  {{MyMajor}}","customLine":"I've been focused on {{MyGroups}}, and I'd value hearing how you think about {{Group}} from the inside rather than from a pitchbook."},{"id":"t3","name":"Cold intro \u2014 no link","subject":"{{MySchool}} student \u2014 15 minutes on {{Group}} at {{Firm}}?","body":"Hi {{FirstName}},\n\nI'm a student at {{MySchool}} studying {{MyMajor}}, and I've been working to understand {{MyGroups}} ahead of recruiting. Your background in {{Group}} at {{Firm}} stood out to me.\n\n{{Firm}}'s recent work on {{Deal}} is part of why I've been reading about the platform specifically rather than casting a wide net.\n\nI know your time is tight \u2014 would 15 minutes in the next few weeks be possible? I'd be grateful for it, and I'll come with specific questions.\n\nBest,\n{{MyName}}\n{{MySchool}} {{MyYear}}  |  {{MyMajor}}","customLine":"{{Firm}}'s recent work on {{Deal}} is part of why I've been reading about the platform specifically rather than casting a wide net."},{"id":"t4","name":"Follow-up bump","subject":"Re: {{MySchool}} {{MyYear}} \u2014 question about {{Group}} at {{Firm}}","body":"Hi {{FirstName}},\n\nJust floating this back to the top of your inbox in case it got buried \u2014 completely understand if now isn't a good time.\n\nStill would love 15 minutes whenever your schedule allows, and I'm happy to send questions over email instead if that's easier.\n\nBest,\n{{MyName}}\n{{MySchool}} {{MyYear}}  |  {{MyMajor}}","customLine":""},{"id":"t5","name":"Post-call thank-you","subject":"Thank you \u2014 {{Firm}}","body":"Hi {{FirstName}},\n\nThank you for taking the time to speak with me. It was genuinely useful.\n\nWhat you said about how {{Group}} staffs juniors changed how I'm thinking about which teams to target this cycle, and I'm going to dig into what you mentioned.\n\nI'll keep you posted on how recruiting goes, and please let me know if there's ever anything I can do on my end. Thanks again.\n\nBest,\n{{MyName}}\n{{MySchool}} {{MyYear}}  |  {{MyMajor}}","customLine":"What you said about how {{Group}} staffs juniors changed how I'm thinking about which teams to target this cycle, and I'm going to dig into what you mentioned."},{"id":"t6","name":"Referral ask","subject":"{{Firm}} application \u2014 quick ask","body":"Hi {{FirstName}},\n\nHope things have been busy in a good way at {{Firm}}.\n\nI wanted to let you know the {{Firm}} application is open and I've submitted for {{Group}}. Given our conversation, I wanted to ask directly: would you be comfortable passing my name along to your recruiting team or the staffer for the group?\n\nCompletely understand if that's not something you're able to do. Either way I'm grateful for the time you already gave me. I've attached my resume in case it's useful.\n\nBest,\n{{MyName}}\n{{MySchool}} {{MyYear}}  |  {{MyMajor}}","customLine":"I wanted to let you know the {{Firm}} application is open and I've submitted for {{Group}}. Given our conversation, I wanted to ask directly: would you be comfortable passing my name along to your recruiting team or the staffer for the group?"},{"id":"t7","name":"Semester check-in","subject":"Checking in \u2014 {{MySchool}}","body":"Hi {{FirstName}},\n\nHope the semester has treated you well. I wanted to check in and share a quick update.\n\nI've kept building toward {{MyGroups}} this semester and wanted to keep you in the loop as recruiting gets closer.\n\nWould be glad to catch up briefly if you have time \u2014 and if there's anything happening at {{Firm}} I should know about, I'd welcome the steer.\n\nBest,\n{{MyName}}\n{{MySchool}} {{MyYear}}  |  {{MyMajor}}","customLine":"I've kept building toward {{MyGroups}} this semester and wanted to keep you in the loop as recruiting gets closer."}],"firms":[{"id":"f1","name":"Evercore","tier":"Elite Boutique","interest":5,"difficulty":"","target":"Yes","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f2","name":"Centerview","tier":"Elite Boutique","interest":5,"difficulty":"","target":"Yes","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f3","name":"Goldman Sachs","tier":"Bulge Bracket","interest":5,"difficulty":"","target":"Yes","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f4","name":"JP Morgan","tier":"Bulge Bracket","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f5","name":"Morgan Stanley","tier":"Bulge Bracket","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f6","name":"Moelis","tier":"Elite Boutique","interest":4,"difficulty":"","target":"Yes","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f7","name":"Lazard","tier":"Elite Boutique","interest":4,"difficulty":"","target":"Yes","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f8","name":"Bank of America","tier":"Bulge Bracket","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f9","name":"Liontree","tier":"Elite Boutique","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f10","name":"PJT Partners","tier":"Elite Boutique","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f11","name":"Deutsche Bank","tier":"Bulge Bracket","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f12","name":"RBC","tier":"Bulge Bracket","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f13","name":"Wells Fargo Securities","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f14","name":"Oppenheimer","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f15","name":"Financial Technology Partners","tier":"Elite Boutique","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f16","name":"Macquarie","tier":"Elite Boutique","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f17","name":"Greenhill (Mizuho)","tier":"Elite Boutique","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f18","name":"M. Klein & Co.","tier":"Elite Boutique","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f19","name":"Harris Williams","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f20","name":"Perella Weinberg","tier":"Elite Boutique","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f21","name":"Qatalyst","tier":"Elite Boutique","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f22","name":"Barclays","tier":"Bulge Bracket","interest":3,"difficulty":"","target":"Yes","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f23","name":"UBS","tier":"Bulge Bracket","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f24","name":"Baird","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f25","name":"Piper Sandler","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f26","name":"Citi","tier":"Bulge Bracket","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f27","name":"Raymond James","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f28","name":"Guggenheim","tier":"Elite Boutique","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f29","name":"Houlihan Lokey","tier":"Middle Market","interest":4,"difficulty":"","target":"Yes","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f30","name":"Rothschild","tier":"Elite Boutique","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f31","name":"William Blair","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f32","name":"Aeris Partners","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f33","name":"Agentis Capital","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f34","name":"BDO Global","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f35","name":"BNY Mellon","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f36","name":"Brown Gibbons Lang & Company","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f37","name":"Campbell Lutyens","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f38","name":"Carlsquare","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f39","name":"CIBC","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f40","name":"CICC","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f41","name":"Credit Agricole","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f42","name":"DC Advisory","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f43","name":"Ducera Partners","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f44","name":"Eastdil Secured","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f45","name":"Fenchurch Advisory","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f46","name":"Gleacher Shacklock","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f47","name":"Leerink Partners","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f48","name":"Lloyds Banking Group","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f49","name":"Loop Capital","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f50","name":"MTS Partners","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f51","name":"MUFG","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f52","name":"Natwest Markets","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f53","name":"Nomura","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f54","name":"Panmure Gordon","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f55","name":"Peel Hunt","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f56","name":"Rede Partners","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f57","name":"Santander","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f58","name":"Scotiabank","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f59","name":"Standard Chartered","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f60","name":"Stifel","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f61","name":"Stout","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f62","name":"TD Cowen","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f63","name":"Torch Partners","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f64","name":"Union Square Advisors","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f65","name":"BlackArch","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f66","name":"KeyBanc","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f67","name":"HSBC","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f68","name":"Societe Generale","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f69","name":"BnP Paribas","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f70","name":"Lincoln International","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f71","name":"DA Davidson","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f72","name":"Cowen","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f73","name":"Deloitte (TAS)","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f74","name":"PwC (TAS)","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f75","name":"KBW","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f76","name":"BMO Capital Markets","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f77","name":"BB&T","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f78","name":"TD Securities","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f79","name":"LEK Consulting","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f80","name":"Brown Brothers Harriman","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f81","name":"Wedbush Securities","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f82","name":"Stephens","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f83","name":"Westlake Securities","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f84","name":"Jefferies","tier":"Middle Market","interest":3,"difficulty":"","target":"Yes","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f85","name":"Rosenblatt Securities","tier":"","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f86","name":"Blackstone","tier":"","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""}],"contacts":[{"id":"c1","first":"Alex","last":"Rivera","firmId":"f1","title":"Analyst 2","group":"M&A","office":"New York","connection":"Alumni","email":"","emailConf":"unknown","year":"","school":"","linkedin":"","stage":"Advocate","priority":1,"lastContact":"2026-01-20","nextAction":"","nextDate":"","touches":4,"replied":true,"callDate":"","referral":true,"tags":["sample"],"notes":[{"d":"2026-01-15","t":"Sample contact \u2014 delete these once you add your own."}]},{"id":"c2","first":"Priya","last":"Nair","firmId":"f2","title":"Associate","group":"Generalist","office":"New York","connection":"Alumni","email":"","emailConf":"unknown","year":"","school":"","linkedin":"","stage":"Replied","priority":1,"lastContact":"2026-01-22","nextAction":"Propose call times","nextDate":"","touches":2,"replied":true,"callDate":"","referral":false,"tags":["sample"],"notes":[{"d":"2026-01-15","t":"Sample contact. Replied stages sort to the top."}]},{"id":"c3","first":"Marcus","last":"Cole","firmId":"f6","title":"Analyst 1","group":"Restructuring","office":"New York","connection":"Referral \u2014 Rivera","email":"","emailConf":"unknown","year":"","school":"","linkedin":"","stage":"Call Done","priority":1,"lastContact":"2026-01-18","nextAction":"Send thank-you","nextDate":"","touches":3,"replied":true,"callDate":"","referral":false,"tags":["sample"],"notes":[{"d":"2026-01-15","t":"Sample contact."}]},{"id":"c4","first":"Dana","last":"Whitfield","firmId":"f7","title":"VP","group":"Power & Utilities","office":"New York","connection":"Cold","email":"","emailConf":"unknown","year":"","school":"","linkedin":"","stage":"Follow-Up 1","priority":2,"lastContact":"2026-01-02","nextAction":"Second bump","nextDate":"","touches":2,"replied":false,"callDate":"","referral":false,"tags":["sample"],"notes":[{"d":"2026-01-15","t":"Sample contact \u2014 shows the stale marker."}]},{"id":"c5","first":"Ines","last":"Duarte","firmId":"f29","title":"Analyst 1","group":"Industrials","office":"New York","connection":"Club","email":"","emailConf":"unknown","year":"","school":"","linkedin":"","stage":"Emailed","priority":2,"lastContact":"2026-01-26","nextAction":"Bump in 7 days","nextDate":"","touches":1,"replied":false,"callDate":"","referral":false,"tags":["sample"],"notes":[{"d":"2026-01-15","t":"Sample contact."}]},{"id":"c6","first":"Tom","last":"Becker","firmId":"f84","title":"MD","group":"LevFin","office":"New York","connection":"Info session","email":"","emailConf":"unknown","year":"","school":"","linkedin":"","stage":"Not Contacted","priority":3,"lastContact":"","nextAction":"Draft cold intro","nextDate":"","touches":0,"replied":false,"callDate":"","referral":false,"tags":["sample"],"notes":[{"d":"2026-01-15","t":"Sample contact."}]}]}</script><!--STATE_END-->
+<script>
+(function(){
+"use strict";
+
+var SEED = JSON.parse(document.getElementById("app-state").textContent);
+var state = SEED;
+
+/* ---------- helpers ---------- */
+function h(tag, attrs, kids){
+  var e = document.createElement(tag);
+  if (attrs) for (var k in attrs){
+    if (k === "class") e.className = attrs[k];
+    else if (k === "html") e.innerHTML = attrs[k];
+    else if (k === "text") e.textContent = attrs[k];
+    else if (k.slice(0,2) === "on") e.addEventListener(k.slice(2), attrs[k]);
+    else if (attrs[k] !== null && attrs[k] !== undefined && attrs[k] !== false) e.setAttribute(k, attrs[k]);
+  }
+  (kids || []).forEach(function(c){ if (c) e.appendChild(typeof c === "string" ? document.createTextNode(c) : c); });
+  return e;
+}
+function $(id){ return document.getElementById(id); }
+function clear(n){ while(n.firstChild) n.removeChild(n.firstChild); }
+function pad2(n){ return (n < 10 ? "0" : "") + n; }
+/* local date, not UTC — toISOString() rolls over a day early for US evenings */
+function today(){ var d = new Date(); return d.getFullYear() + "-" + pad2(d.getMonth()+1) + "-" + pad2(d.getDate()); }
+function daysSince(iso){
+  if(!iso) return null;
+  var ms = Date.parse(iso + "T00:00:00");
+  if (isNaN(ms)) return null;
+  return Math.floor((Date.parse(today() + "T00:00:00") - ms) / 86400000);
+}
+function uid(p){ return p + Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
+function firm(id){ for(var i=0;i<state.firms.length;i++) if(state.firms[i].id===id) return state.firms[i]; return null; }
+function firmName(id){ var f = firm(id); return f ? f.name : ""; }
+function contact(id){ for(var i=0;i<state.contacts.length;i++) if(state.contacts[i].id===id) return state.contacts[i]; return null; }
+function fullName(c){ return (c.first + " " + (c.last||"")).trim(); }
+function ssGet(k){ try { return sessionStorage.getItem(k) || ""; } catch(e){ return ""; } }
+function ssSet(k,v){ try { sessionStorage.setItem(k,v); } catch(e){} }
+function esc(s){ return String(s==null?"":s); }
+
+/* ---------- persistence: document store, with a local fallback ---------- */
+var db = null, dirty = false, saving = false, timer = null, ready = false;
+var LS = "coverage.state.v1";
+var flag = $("saveflag");
+function setFlag(txt, cls){ flag.textContent = txt; flag.className = cls || ""; }
+
+/* Three documents rather than one: each stays far under the per-document
+   size cap as the contact list grows, and only what changed gets written. */
+function shard(st){
+  return {
+    "app/meta":     {profile: st.profile, settings: st.settings, stages: st.stages, templates: st.templates},
+    "app/contacts": {list: st.contacts},
+    "app/firms":    {list: st.firms}
+  };
+}
+var written = {};
+
+function assemble(meta, contacts, firms){
+  return {
+    profile: meta.profile || SEED.profile,
+    settings: meta.settings || SEED.settings,
+    stages: (meta.stages && meta.stages.length) ? meta.stages : SEED.stages,
+    templates: (meta.templates && meta.templates.length) ? meta.templates : SEED.templates,
+    contacts: contacts.list || [],
+    firms: firms.list || []
+  };
+}
+function lsLoad(){
+  try {
+    var raw = localStorage.getItem(LS);
+    if (raw) state = JSON.parse(raw);
+  } catch(e){}
+}
+function lsSave(){
+  try { localStorage.setItem(LS, JSON.stringify(state)); return true; } catch(e){ return false; }
+}
+
+function markWritten(){
+  var sh = shard(state);
+  for (var k in sh) written[k] = JSON.stringify(sh[k]);
+}
+
+function boot(){
+  var p = (typeof window.claude !== "undefined" && window.claude && window.claude.use)
+    ? window.claude.use("db") : Promise.resolve(null);
+  return p.catch(function(){ return null; }).then(function(d){
+    db = d;
+    if (!db){
+      lsLoad(); ready = true;
+      setFlag("saved locally", "");
+      return;
+    }
+    return Promise.all([
+      db.doc("app/meta").get(), db.doc("app/contacts").get(), db.doc("app/firms").get()
+    ]).then(function(sn){
+      if (sn[0].exists && sn[1].exists && sn[2].exists){
+        if (dirty){
+          /* the viewer edited while we were still loading — their copy wins */
+          ready = true; written = {};
+          return writeAll().then(function(){ dirty = false; setFlag("saved"); });
+        }
+        state = assemble(sn[0].data(), sn[1].data(), sn[2].data());
+        markWritten();
+        ready = true; setFlag("saved");
+      } else {
+        /* first run on this artifact — plant the imported spreadsheet */
+        ready = true;
+        return writeAll().then(function(){ setFlag("saved"); });
+      }
+    });
+  }).catch(function(){
+    db = null; lsLoad(); ready = true; setFlag("saved locally", "");
+  });
+}
+
+function writeAll(){
+  var sh = shard(state), jobs = [];
+  for (var k in sh){
+    var j = JSON.stringify(sh[k]);
+    if (written[k] !== j){
+      written[k] = j;
+      jobs.push(db.doc(k).set(sh[k]));
+    }
+  }
+  return Promise.all(jobs);
+}
+
+function save(){
+  dirty = true;
+  setFlag("unsaved", "on");
+  clearTimeout(timer);
+  timer = setTimeout(flush, 700);
+}
+function flush(){
+  if (!dirty || saving || !ready) return;
+  if (!db){ dirty = !lsSave(); setFlag(dirty ? "not saved \u2014 storage blocked" : "saved locally", dirty ? "err" : ""); return; }
+  saving = true; setFlag("saving…", "on");
+  writeAll().then(function(){
+    saving = false; dirty = false; setFlag("saved");
+  }).catch(function(e){
+    saving = false;
+    var code = e && e.code;
+    if (code === "unavailable"){ setFlag("retrying…", "err"); setTimeout(flush, 2500); }
+    else setFlag("not saved" + (code ? " (" + code + ")" : ""), "err");
+  });
+}
+window.addEventListener("beforeunload", function(e){
+  if (dirty){ e.preventDefault(); e.returnValue = ""; }
+});
+
+function toast(msg){
+  var t = h("div", {class:"toast", text:msg});
+  document.body.appendChild(t);
+  setTimeout(function(){ t.remove(); }, 2200);
+}
+
+/* ---------- derived ---------- */
+var STAGE_CLASS = {
+  "Not Contacted":"p-grey", "Emailed":"p-amber", "Follow-Up 1":"p-slate", "Follow-Up 2":"p-slate",
+  "Replied":"p-brass", "Call Scheduled":"p-brass", "Call Done":"p-green",
+  "Thank-You Sent":"p-green", "Advocate":"p-green", "Dead":"p-red"
+};
+function stageClass(s){ return STAGE_CLASS[s] || "p-grey"; }
+function staleDays(c){
+  var d = daysSince(c.lastContact);
+  if (c.stage === "Replied") return d === null ? 0 : d;
+  if (c.stage === "Emailed" || c.stage === "Follow-Up 1" || c.stage === "Follow-Up 2") return d;
+  return null;
+}
+function isStale(c){
+  if (c.stage === "Replied"){ var r = daysSince(c.lastContact); return r === null || r >= 1; }
+  var d = staleDays(c);
+  return d !== null && d >= (state.settings.bumpDays || 7);
+}
+function needsAction(c){
+  if (c.stage === "Dead" || c.stage === "Advocate") return false;
+  if (c.stage === "Not Contacted") return c.priority <= 2;
+  if (c.stage === "Replied") return true;
+  return isStale(c);
+}
+function firmContacts(fid){ return state.contacts.filter(function(c){ return c.firmId === fid; }); }
+
+/* ---------- routing ---------- */
+var TABS = [["contacts","Contacts"],["firms","Firms"],["compose","Compose"],["settings","Settings"]];
+var route = ssGet("cov.tab") || "contacts";
+var ui = {
+  q:"", stage:"", prio:"", needs:false, sort:"auto", desc:false,
+  fq:"", ftarget:"", ftier:"", fgap:false,
+  composeTo: ssGet("cov.to"), composeTpl: "", draft:null
+};
+
+function go(r){
+  route = r; ssSet("cov.tab", r); render();
+}
+function renderTabs(){
+  var nav = $("tabs"); clear(nav);
+  TABS.forEach(function(t){
+    nav.appendChild(h("button", {
+      "aria-current": route === t[0] ? "true" : "false",
+      onclick: function(){ go(t[0]); }, text: t[1]
+    }));
+  });
+}
+function render(){
+  renderTabs();
+  var v = $("view"); clear(v);
+  if (route === "contacts") viewContacts(v);
+  else if (route === "firms") viewFirms(v);
+  else if (route === "compose") viewCompose(v);
+  else viewSettings(v);
+}
+
+/* ================= CONTACTS ================= */
+function viewContacts(v){
+  var cs = state.contacts;
+  var sent = 0, replied = 0, calls = 0, refs = 0, act = 0;
+  cs.forEach(function(c){
+    sent += c.touches || 0;
+    if (c.replied) replied++;
+    if (c.callDate || c.stage === "Call Done" || c.stage === "Thank-You Sent" || c.stage === "Advocate") calls++;
+    if (c.referral) refs++;
+    if (needsAction(c)) act++;
+  });
+  var emailedPeople = cs.filter(function(c){ return (c.touches||0) > 0; }).length;
+  var rate = emailedPeople ? Math.round(replied / emailedPeople * 100) + "%" : "—";
+
+  var kp = h("div", {class:"kpis"});
+  [[cs.length,"Contacts"],[sent,"Emails sent"],[rate,"Reply rate"],[calls,"Calls done"],[refs,"Referrals"]].forEach(function(k){
+    kp.appendChild(h("div",{class:"kpi"},[h("div",{class:"n",text:String(k[0])}),h("div",{class:"k",text:k[1]})]));
+  });
+  kp.appendChild(h("div",{class:"kpi" + (act ? " alert" : "")},[
+    h("div",{class:"n",text:String(act)}), h("div",{class:"k",text:"Needs action"})
+  ]));
+  v.appendChild(kp);
+
+  /* filters */
+  var f = h("div",{class:"filters"});
+  var q = h("input",{type:"search",placeholder:"Search name, firm, group, connection…",value:ui.q});
+  q.addEventListener("input", function(){ ui.q = q.value; drawRows(); });
+  f.appendChild(q);
+
+  var sel = h("select");
+  sel.appendChild(h("option",{value:"",text:"All stages"}));
+  state.stages.forEach(function(s){ sel.appendChild(h("option",{value:s,text:s,selected:ui.stage===s?"selected":null})); });
+  sel.addEventListener("change", function(){ ui.stage = sel.value; drawRows(); });
+  f.appendChild(sel);
+
+  var psel = h("select");
+  [["","All priorities"],["1","P1 only"],["2","P2 only"],["3","P3 only"]].forEach(function(o){
+    psel.appendChild(h("option",{value:o[0],text:o[1],selected:ui.prio===o[0]?"selected":null}));
+  });
+  psel.addEventListener("change", function(){ ui.prio = psel.value; drawRows(); });
+  f.appendChild(psel);
+
+  var nb = h("button",{class:"chip","aria-pressed":ui.needs?"true":"false",text:"Needs action"});
+  nb.addEventListener("click", function(){ ui.needs = !ui.needs; nb.setAttribute("aria-pressed", ui.needs?"true":"false"); drawRows(); });
+  f.appendChild(nb);
+  f.appendChild(h("span",{class:"spacer"}));
+  var cnt = h("span",{class:"count"});
+  f.appendChild(cnt);
+  v.appendChild(f);
+
+  var wrap = h("div",{class:"tablewrap"});
+  var tbl = h("table");
+  var cols = [["pri","Pri"],["name","Name"],["firm","Firm / Group"],["conn","Connection"],["stage","Stage"],["last","Last touch"],["next","Next action"]];
+  var thead = h("thead"); var tr = h("tr");
+  cols.forEach(function(c){
+    var th = h("th",{class:"sortable",onclick:function(){
+      if (ui.sort === c[0]) ui.desc = !ui.desc; else { ui.sort = c[0]; ui.desc = false; }
+      drawRows();
+    }});
+    th.appendChild(document.createTextNode(c[1]));
+    if (ui.sort === c[0]) th.appendChild(h("span",{class:"car",text: ui.desc ? " ▾" : " ▴"}));
+    tr.appendChild(th);
+  });
+  thead.appendChild(tr); tbl.appendChild(thead);
+  var tbody = h("tbody"); tbl.appendChild(tbody);
+  wrap.appendChild(tbl); v.appendChild(wrap);
+
+  function filtered(){
+    var s = ui.q.trim().toLowerCase();
+    return state.contacts.filter(function(c){
+      if (ui.stage && c.stage !== ui.stage) return false;
+      if (ui.prio && String(c.priority) !== ui.prio) return false;
+      if (ui.needs && !needsAction(c)) return false;
+      if (!ui.stage && !ui.q && c.stage === "Dead") return false;
+      if (s){
+        var hay = (fullName(c) + " " + firmName(c.firmId) + " " + c.group + " " + c.connection + " " + c.title + " " + (c.tags||[]).join(" ")).toLowerCase();
+        if (hay.indexOf(s) < 0) return false;
+      }
+      return true;
+    });
+  }
+  function sortRows(rows){
+    var k = ui.sort, dir = ui.desc ? -1 : 1;
+    var STAGE_ORDER = state.stages;
+    rows.sort(function(a,b){
+      var r = 0;
+      if (k === "auto"){
+        var na = needsAction(a) ? 0 : 1, nb2 = needsAction(b) ? 0 : 1;
+        if (na !== nb2) return na - nb2;
+        if (a.priority !== b.priority) return a.priority - b.priority;
+        var da = staleDays(a), db = staleDays(b);
+        return (db === null ? -1 : db) - (da === null ? -1 : da);
+      }
+      if (k === "pri") r = a.priority - b.priority;
+      else if (k === "name") r = fullName(a).localeCompare(fullName(b));
+      else if (k === "firm") r = firmName(a.firmId).localeCompare(firmName(b.firmId));
+      else if (k === "conn") r = (a.connection||"").localeCompare(b.connection||"");
+      else if (k === "stage") r = STAGE_ORDER.indexOf(a.stage) - STAGE_ORDER.indexOf(b.stage);
+      else if (k === "last") r = (Date.parse(a.lastContact||"1970-01-01")||0) - (Date.parse(b.lastContact||"1970-01-01")||0);
+      else if (k === "next") r = (a.nextAction||"").localeCompare(b.nextAction||"");
+      return r * dir;
+    });
+    return rows;
+  }
+  function drawRows(){
+    clear(tbody);
+    var rows = sortRows(filtered());
+    cnt.textContent = rows.length + " of " + state.contacts.length;
+    if (!rows.length){
+      var td = h("td",{colspan:"7"},[h("div",{class:"empty",text:"No contacts match. Clear the filters, or add someone."})]);
+      tbody.appendChild(h("tr",{},[td]));
+      return;
+    }
+    rows.forEach(function(c){
+      var d = staleDays(c);
+      var lastCell;
+      if (!c.lastContact) lastCell = h("span",{class:"fresh",text:"—"});
+      else if (isStale(c)) lastCell = h("span",{class:"stale",text:d + "d · stale"});
+      else lastCell = h("span",{class:"fresh",text:d === 0 ? "today" : d + "d ago"});
+      var tr = h("tr",{onclick:function(){ openContact(c.id); }},[
+        h("td",{},[h("span",{class:"dot d"+c.priority,title:"P"+c.priority})]),
+        h("td",{class:"nm"},[document.createTextNode(fullName(c)), h("span",{class:"sub",text:(c.title||"—")})]),
+        h("td",{},[document.createTextNode(firmName(c.firmId) || "—"), h("span",{class:"sub",text:c.group||""})]),
+        h("td",{},[document.createTextNode(c.connection || "—")]),
+        h("td",{},[h("span",{class:"pill "+stageClass(c.stage),text:c.stage})]),
+        h("td",{},[lastCell]),
+        h("td",{},[document.createTextNode(c.nextAction || "—")])
+      ]);
+      tbody.appendChild(tr);
+    });
+  }
+  drawRows();
+}
+
+/* ================= CONTACT DRAWER ================= */
+function closeLayer(){ clear($("layer")); }
+function drawer(title, sub, bodyBuild, footBuild){
+  var layer = $("layer"); clear(layer);
+  var scrim = h("div",{class:"scrim",onclick:closeLayer});
+  var d = h("div",{class:"drawer",role:"dialog","aria-modal":"true"});
+  var head = h("div",{class:"drawer-head"},[
+    h("div",{},[h("h2",{text:title}), sub ? h("span",{class:"sub",text:sub}) : null]),
+    h("button",{class:"xbtn",onclick:closeLayer,"aria-label":"Close",html:"&times;"})
+  ]);
+  var body = h("div",{class:"drawer-body"});
+  bodyBuild(body);
+  d.appendChild(head); d.appendChild(body);
+  if (footBuild){ var foot = h("div",{class:"drawer-foot"}); footBuild(foot); d.appendChild(foot); }
+  layer.appendChild(scrim); layer.appendChild(d);
+  armEsc();
+}
+function escOnce(e){
+  if (e.key === "Escape"){ closeLayer(); document.removeEventListener("keydown", escOnce); }
+}
+function armEsc(){ document.removeEventListener("keydown", escOnce); document.addEventListener("keydown", escOnce); }
+
+function field(label, val, onchange, opts){
+  opts = opts || {};
+  var input;
+  if (opts.type === "select"){
+    input = h("select");
+    (opts.options||[]).forEach(function(o){
+      input.appendChild(h("option",{value:o,text:o||"—",selected:String(val)===String(o)?"selected":null}));
+    });
+  } else if (opts.type === "textarea"){
+    input = h("textarea",{});
+    input.value = esc(val);
+  } else {
+    input = h("input",{type:opts.type||"text",value:esc(val),placeholder:opts.ph||""});
+    if (opts.list) input.setAttribute("list", opts.list);
+  }
+  input.addEventListener("change", function(){ onchange(input.value); });
+  var f = h("div",{class:"f" + (opts.wide?" wide":"")},[h("label",{text:label}), input]);
+  if (opts.hint) f.appendChild(h("div",{class:"hint",text:opts.hint}));
+  return f;
+}
+function datalists(){
+  var l = h("div");
+  function dl(id, vals){
+    var d = h("datalist",{id:id});
+    vals.forEach(function(v){ if(v) d.appendChild(h("option",{value:v})); });
+    l.appendChild(d);
+  }
+  dl("dl-firms", state.firms.map(function(f){ return f.name; }).sort());
+  dl("dl-groups", uniq(state.contacts.map(function(c){ return c.group; })).concat(state.settings.groups||[]));
+  dl("dl-conn", uniq(state.contacts.map(function(c){ return c.connection; })));
+  dl("dl-title", ["Intern","Analyst 1","Analyst 2","Analyst 3","Associate","VP","Director","MD","Partner","Head of IB"]);
+  dl("dl-office", uniq(state.contacts.map(function(c){ return c.office; })));
+  return l;
+}
+function uniq(a){
+  var o = {}, r = [];
+  a.forEach(function(x){ x = (x||"").trim(); if (x && !o[x]){ o[x]=1; r.push(x); } });
+  return r.sort();
+}
+
+function openContact(id){
+  var c = contact(id); if (!c) return;
+  var f = firm(c.firmId);
+  drawer(fullName(c), [c.title, f ? f.name : "", c.group].filter(Boolean).join("  ·  "), function(body){
+    body.appendChild(datalists());
+
+    /* stage rail */
+    var fs0 = h("div",{class:"fieldset"},[h("div",{class:"lg",text:"Stage"})]);
+    var rail = h("div",{class:"rail"});
+    state.stages.forEach(function(s){
+      rail.appendChild(h("button",{class: c.stage===s?"on":"", text:s, onclick:function(){
+        setStage(c, s); save(); openContact(id); render();
+      }}));
+    });
+    fs0.appendChild(rail);
+    body.appendChild(fs0);
+
+    /* quick actions */
+    var qa = h("div",{class:"filters"});
+    qa.appendChild(h("button",{class:"btn sm",text:"Log email sent today",onclick:function(){
+      logEmail(c); save(); openContact(id); render(); toast("Logged — " + c.stage);
+    }}));
+    qa.appendChild(h("button",{class:"btn sm",text:"Mark replied",onclick:function(){
+      c.replied = true; c.stage = "Replied"; c.lastContact = today();
+      c.nextAction = "Propose call times"; save(); openContact(id); render();
+    }}));
+    qa.appendChild(h("button",{class:"btn sm",text:"Compose →",onclick:function(){
+      ui.composeTo = c.id; ui.draft = null; ssSet("cov.to", c.id);
+      closeLayer(); go("compose");
+    }}));
+    body.appendChild(qa);
+
+    /* identity */
+    var fs1 = h("div",{class:"fieldset"},[h("div",{class:"lg",text:"Who"})]);
+    var g1 = h("div",{class:"fgrid"});
+    g1.appendChild(field("First name", c.first, function(v){ c.first=v; save(); render(); }));
+    g1.appendChild(field("Last name", c.last, function(v){ c.last=v; save(); render(); }));
+    g1.appendChild(field("Firm", firmName(c.firmId), function(v){ c.firmId = firmIdFor(v); save(); render(); }, {list:"dl-firms"}));
+    g1.appendChild(field("Group", c.group, function(v){ c.group=v; save(); render(); }, {list:"dl-groups"}));
+    g1.appendChild(field("Title", c.title, function(v){ c.title=v; save(); render(); }, {list:"dl-title"}));
+    g1.appendChild(field("Office", c.office, function(v){ c.office=v; save(); }, {list:"dl-office"}));
+    g1.appendChild(field("Connection", c.connection, function(v){ c.connection=v; save(); render(); }, {list:"dl-conn"}));
+    g1.appendChild(field("Grad year", c.year, function(v){ c.year=v; save(); }, {ph:"e.g. 2019"}));
+    g1.appendChild(field("School", c.school, function(v){ c.school=v; save(); }, {ph:"Their school"}));
+    g1.appendChild(field("LinkedIn", c.linkedin, function(v){ c.linkedin=v; save(); }, {ph:"URL"}));
+    fs1.appendChild(g1);
+    body.appendChild(fs1);
+
+    /* email */
+    var fs2 = h("div",{class:"fieldset"},[h("div",{class:"lg",text:"Email"})]);
+    var g2 = h("div",{class:"fgrid"});
+    g2.appendChild(field("Address", c.email, function(v){ c.email=v; if(v) c.emailConf = c.emailConf==="unknown" ? "pattern" : c.emailConf; save(); }, {wide:true, ph:"first.last@firm.com"}));
+    g2.appendChild(field("Confidence", c.emailConf, function(v){ c.emailConf=v; save(); }, {type:"select", options:["unknown","pattern","verified","bounced"]}));
+    fs2.appendChild(g2);
+    var guessRow = h("div",{class:"filters"});
+    guessRow.appendChild(h("button",{class:"btn sm",text:"Guess from firm pattern",onclick:function(){
+      var g = guessEmail(c);
+      if (!g){ toast("Set an email pattern on " + (firmName(c.firmId)||"the firm") + " first"); return; }
+      c.email = g; c.emailConf = "pattern"; save(); openContact(id);
+    }}));
+    if (f && f.emailPattern) guessRow.appendChild(h("span",{class:"count",text:f.emailPattern + "@"}));
+    fs2.appendChild(guessRow);
+    body.appendChild(fs2);
+
+    /* tracking */
+    var fs3 = h("div",{class:"fieldset"},[h("div",{class:"lg",text:"Tracking"})]);
+    var g3 = h("div",{class:"fgrid"});
+    g3.appendChild(field("Priority", "P"+c.priority, function(v){ c.priority = parseInt(v.replace("P",""),10)||3; save(); render(); }, {type:"select", options:["P1","P2","P3"]}));
+    g3.appendChild(field("Last contact", c.lastContact, function(v){ c.lastContact=v; save(); render(); }, {type:"date"}));
+    g3.appendChild(field("Next action", c.nextAction, function(v){ c.nextAction=v; save(); render(); }, {wide:true, ph:"Draft cold intro"}));
+    g3.appendChild(field("Next action date", c.nextDate, function(v){ c.nextDate=v; save(); }, {type:"date"}));
+    g3.appendChild(field("Call date", c.callDate, function(v){ c.callDate=v; save(); render(); }, {type:"date"}));
+    g3.appendChild(field("Touches", c.touches, function(v){ c.touches=parseInt(v,10)||0; save(); render(); }, {type:"number"}));
+    g3.appendChild(field("Tags", (c.tags||[]).join(", "), function(v){ c.tags = v.split(",").map(function(x){return x.trim();}).filter(Boolean); save(); }, {wide:true, ph:"comma separated"}));
+    fs3.appendChild(g3);
+    var checks = h("div",{class:"fgrid"});
+    [["Replied","replied"],["Referral given","referral"]].forEach(function(p){
+      var cb = h("input",{type:"checkbox"});
+      cb.checked = !!c[p[1]];
+      cb.addEventListener("change", function(){ c[p[1]] = cb.checked; save(); render(); });
+      checks.appendChild(h("label",{class:"checkline"},[cb, document.createTextNode(p[0])]));
+    });
+    fs3.appendChild(checks);
+    body.appendChild(fs3);
+
+    /* notes */
+    var fs4 = h("div",{class:"fieldset"},[h("div",{class:"lg",text:"Notes log"})]);
+    var ta = h("textarea",{placeholder:"What did they say? Deal they're on, group colour, what to ask next time…"});
+    ta.style.minHeight = "62px";
+    var addNote = h("button",{class:"btn sm",text:"Add note",onclick:function(){
+      var t = ta.value.trim(); if(!t) return;
+      c.notes = c.notes || [];
+      c.notes.unshift({d: today(), t: t});
+      ta.value = ""; save(); openContact(id);
+    }});
+    fs4.appendChild(h("div",{class:"f wide"},[ta]));
+    fs4.appendChild(h("div",{class:"filters"},[addNote]));
+    var nl = h("div",{class:"notes"});
+    (c.notes||[]).forEach(function(n, i){
+      nl.appendChild(h("div",{class:"note"},[
+        h("span",{class:"d",text:n.d}),
+        h("span",{class:"t",text:n.t}),
+        h("button",{class:"del",title:"Delete note",html:"&times;",onclick:function(ev){
+          ev.stopPropagation(); c.notes.splice(i,1); save(); openContact(id);
+        }})
+      ]));
+    });
+    if (!(c.notes||[]).length) nl.appendChild(h("div",{class:"hint",text:"No notes yet."}));
+    fs4.appendChild(nl);
+    body.appendChild(fs4);
+  }, function(foot){
+    foot.appendChild(h("button",{class:"btn primary",text:"Done",onclick:function(){ flush(); closeLayer(); }}));
+    foot.appendChild(h("span",{class:"spacer"}));
+    foot.appendChild(h("button",{class:"btn danger sm",text:"Delete contact",onclick:function(){
+      if (!confirm("Delete " + fullName(c) + "? This cannot be undone.")) return;
+      state.contacts = state.contacts.filter(function(x){ return x.id !== c.id; });
+      save(); closeLayer(); render();
+    }}));
+  });
+}
+
+function setStage(c, s){
+  c.stage = s;
+  if (s === "Emailed" || s === "Follow-Up 1" || s === "Follow-Up 2"){
+    c.lastContact = today();
+    c.nextAction = s === "Follow-Up 2" ? "Final bump sent — wait" : "Bump in " + (state.settings.bumpDays||7) + " days";
+  }
+  if (s === "Replied"){ c.replied = true; c.nextAction = "Propose call times"; }
+  if (s === "Call Done"){ c.callDate = c.callDate || today(); c.nextAction = "Send thank-you"; c.nextDate = today(); }
+  if (s === "Thank-You Sent"){ c.lastContact = today(); c.nextAction = "Keep warm — check in next month"; }
+  if (s === "Advocate"){ c.referral = true; c.nextAction = ""; }
+  if (s === "Dead"){ c.nextAction = ""; }
+  if (s === "Not Contacted"){ c.nextAction = "Draft cold intro"; }
+}
+function logEmail(c){
+  c.touches = (c.touches||0) + 1;
+  c.lastContact = today();
+  var order = ["Not Contacted","Emailed","Follow-Up 1","Follow-Up 2"];
+  var i = order.indexOf(c.stage);
+  if (i >= 0 && i < 3) c.stage = order[i+1];
+  else if (c.stage === "Replied" || c.stage === "Call Scheduled"){ /* keep */ }
+  else if (c.stage === "Call Done") c.stage = "Thank-You Sent";
+  if (c.stage === "Emailed" || c.stage === "Follow-Up 1") c.nextAction = "Bump in " + (state.settings.bumpDays||7) + " days";
+  else if (c.stage === "Follow-Up 2") c.nextAction = "Final bump sent — wait";
+}
+function firmIdFor(name){
+  name = (name||"").trim();
+  if (!name) return "";
+  var n = name.toLowerCase();
+  for (var i=0;i<state.firms.length;i++) if (state.firms[i].name.toLowerCase() === n) return state.firms[i].id;
+  var nf = {id:uid("f"), name:name, tier:"", interest:0, difficulty:"", target:"No",
+    emailPattern:"", hq:"", groups:"", headcount:"", appStatus:"Not open", opens:"", deadline:"",
+    superday:"", referral:false, targetGroup:"", whyFirm:"", deals:"", sectors:"", alumni:""};
+  state.firms.push(nf);
+  return nf.id;
+}
+function guessEmail(c){
+  var f = firm(c.firmId); if (!f || !f.emailPattern) return "";
+  var dom = f.emailPattern.indexOf("@") >= 0 ? f.emailPattern.split("@")[1] : "";
+  var pat = f.emailPattern.split("@")[0];
+  var fi = (c.first||"").toLowerCase().replace(/[^a-z]/g,"");
+  var la = (c.last||"").toLowerCase().replace(/[^a-z]/g,"");
+  if (!fi || !la || !dom) return "";
+  var local = pat
+    .replace(/first/g, fi).replace(/last/g, la)
+    .replace(/f\b/g, fi.charAt(0)).replace(/l\b/g, la.charAt(0));
+  return local + "@" + dom;
+}
+
+/* ================= ADD CONTACT ================= */
+function addContactForm(){
+  var layer = $("layer"); clear(layer);
+  var scrim = h("div",{class:"scrim",onclick:closeLayer});
+  var m = h("div",{class:"modal",role:"dialog","aria-modal":"true"});
+  m.appendChild(h("div",{class:"modal-head"},[
+    h("h2",{text:"New contact"}),
+    h("button",{class:"xbtn",onclick:closeLayer,"aria-label":"Close",html:"&times;"})
+  ]));
+  var body = h("div",{class:"modal-body"});
+  body.appendChild(datalists());
+
+  var vals = {name:"", firm:"", title:"", group:"", office:"", conn:"", email:"", prio:"2", note:""};
+  var nameIn = h("input",{type:"text",placeholder:"Full name",autofocus:"autofocus"});
+  nameIn.addEventListener("input", function(){ vals.name = nameIn.value; });
+  body.appendChild(h("div",{class:"f wide bigname"},[h("label",{text:"Name"}), nameIn]));
+
+  var g = h("div",{class:"fgrid"});
+  function mk(label, key, opts){
+    opts = opts || {};
+    var i;
+    if (opts.type === "select"){
+      i = h("select");
+      opts.options.forEach(function(o){ i.appendChild(h("option",{value:o[0],text:o[1],selected:vals[key]===o[0]?"selected":null})); });
+    } else {
+      i = h("input",{type:"text",placeholder:opts.ph||""});
+      if (opts.list) i.setAttribute("list", opts.list);
+    }
+    i.addEventListener("input", function(){ vals[key] = i.value; });
+    i.addEventListener("change", function(){ vals[key] = i.value; });
+    g.appendChild(h("div",{class:"f"+(opts.wide?" wide":"")},[h("label",{text:label}), i]));
+    return i;
+  }
+  mk("Firm","firm",{list:"dl-firms",ph:"Type to match or create"});
+  mk("Group","group",{list:"dl-groups",ph:"M&A, Restructuring…"});
+  mk("Title","title",{list:"dl-title",ph:"Analyst 1"});
+  mk("Office","office",{list:"dl-office",ph:"New York"});
+  mk("Connection","conn",{list:"dl-conn",ph:"Alumni, referral, club…"});
+  mk("Email","email",{ph:"optional"});
+  mk("Priority","prio",{type:"select",options:[["1","P1 — move the needle"],["2","P2 — worth effort"],["3","P3 — volume"]]});
+  body.appendChild(g);
+
+  var noteTa = h("textarea",{placeholder:"How you know them, what to mention…"});
+  noteTa.addEventListener("input", function(){ vals.note = noteTa.value; });
+  body.appendChild(h("div",{class:"f wide"},[h("label",{text:"First note"}), noteTa]));
+
+  m.appendChild(body);
+
+  function commit(){
+    var nm = vals.name.trim();
+    if (!nm){ nameIn.focus(); toast("Give them a name first"); return null; }
+    var parts = nm.split(/\s+/);
+    var c = {
+      id: uid("c"), first: parts[0], last: parts.slice(1).join(" "),
+      firmId: firmIdFor(vals.firm), title: vals.title, group: vals.group, office: vals.office,
+      connection: vals.conn, email: vals.email, emailConf: vals.email ? "pattern" : "unknown",
+      year:"", school:"", linkedin:"", stage:"Not Contacted", priority: parseInt(vals.prio,10)||3,
+      lastContact:"", nextAction:"Draft cold intro", nextDate:"", touches:0, replied:false,
+      callDate:"", referral:false, tags:[], notes: vals.note.trim() ? [{d:today(), t:vals.note.trim()}] : []
+    };
+    state.contacts.push(c);
+    save();
+    return c;
+  }
+
+  var foot = h("div",{class:"modal-foot"});
+  foot.appendChild(h("button",{class:"btn primary",text:"Save contact",onclick:function(){
+    var c = commit(); if (!c) return;
+    closeLayer(); render(); toast("Added " + fullName(c));
+  }}));
+  foot.appendChild(h("button",{class:"btn",text:"Save & add another",onclick:function(){
+    var c = commit(); if (!c) return;
+    render(); toast("Added " + fullName(c));
+    addContactForm();
+  }}));
+  foot.appendChild(h("span",{class:"spacer"}));
+  foot.appendChild(h("button",{class:"btn ghost",text:"Cancel",onclick:closeLayer}));
+  m.appendChild(foot);
+
+  layer.appendChild(scrim); layer.appendChild(m);
+  armEsc();
+  setTimeout(function(){ nameIn.focus(); }, 30);
+}
+
+/* ================= FIRMS ================= */
+var TIERS = ["","Bulge Bracket","Elite Boutique","Middle Market","Boutique","MF PE","UMM PE","MM PE","Growth","Credit","Consulting / TAS"];
+var APPSTAT = ["Not open","Open","Applied","OA / HireVue","First round","Superday","Offer","Rejected","Closed"];
+var DIFF = ["","Lottery","Reach","Medium","Target","Safety"];
+
+function viewFirms(v){
+  var fs = state.firms;
+  var tgt = fs.filter(function(f){ return f.target === "Yes"; });
+  var covered = tgt.filter(function(f){ return firmContacts(f.id).length > 0; }).length;
+  var replied = tgt.filter(function(f){ return firmContacts(f.id).some(function(c){ return c.replied; }); }).length;
+
+  var kp = h("div",{class:"kpis"});
+  [[fs.length,"Firms"],[tgt.length,"Targets"],[covered+"/"+tgt.length,"Targets w/ contacts"],[replied,"Targets w/ replies"]].forEach(function(k){
+    kp.appendChild(h("div",{class:"kpi"},[h("div",{class:"n",text:String(k[0])}),h("div",{class:"k",text:k[1]})]));
+  });
+  var gapN = tgt.length - covered;
+  kp.appendChild(h("div",{class:"kpi"+(gapN?" alert":"")},[h("div",{class:"n",text:String(gapN)}),h("div",{class:"k",text:"Coverage gaps"})]));
+  v.appendChild(kp);
+
+  var f = h("div",{class:"filters"});
+  var q = h("input",{type:"search",placeholder:"Search firms…",value:ui.fq});
+  q.addEventListener("input", function(){ ui.fq = q.value; draw(); });
+  f.appendChild(q);
+  var ts = h("select");
+  [["","All targets"],["Yes","Target: Yes"],["Maybe","Target: Maybe"],["No","Target: No"]].forEach(function(o){
+    ts.appendChild(h("option",{value:o[0],text:o[1],selected:ui.ftarget===o[0]?"selected":null}));
+  });
+  ts.addEventListener("change", function(){ ui.ftarget = ts.value; draw(); });
+  f.appendChild(ts);
+  var tr2 = h("select");
+  ["","Bulge Bracket","Elite Boutique","Middle Market"].forEach(function(o){
+    tr2.appendChild(h("option",{value:o,text:o||"All tiers",selected:ui.ftier===o?"selected":null}));
+  });
+  tr2.addEventListener("change", function(){ ui.ftier = tr2.value; draw(); });
+  f.appendChild(tr2);
+  var gb = h("button",{class:"chip",text:"Coverage gaps only","aria-pressed":ui.fgap?"true":"false"});
+  gb.addEventListener("click", function(){ ui.fgap = !ui.fgap; gb.setAttribute("aria-pressed", ui.fgap?"true":"false"); draw(); });
+  f.appendChild(gb);
+  f.appendChild(h("span",{class:"spacer"}));
+  var cnt = h("span",{class:"count"}); f.appendChild(cnt);
+  f.appendChild(h("button",{class:"btn sm",text:"+ Firm",onclick:function(){
+    var nf = {id:uid("f"), name:"New firm", tier:"", interest:3, difficulty:"", target:"Maybe",
+      emailPattern:"", hq:"", groups:"", headcount:"", appStatus:"Not open", opens:"", deadline:"",
+      superday:"", referral:false, targetGroup:"", whyFirm:"", deals:"", sectors:"", alumni:""};
+    state.firms.push(nf); save(); render(); openFirm(nf.id);
+  }}));
+  v.appendChild(f);
+
+  var wrap = h("div",{class:"tablewrap"});
+  var tbl = h("table");
+  var thead = h("thead"); var hr = h("tr");
+  ["Firm","Tier","Interest","Difficulty","Target","Contacts","Replied","App status","Deadline"].forEach(function(c){
+    hr.appendChild(h("th",{text:c}));
+  });
+  thead.appendChild(hr); tbl.appendChild(thead);
+  var tb = h("tbody"); tbl.appendChild(tb); wrap.appendChild(tbl); v.appendChild(wrap);
+
+  function draw(){
+    clear(tb);
+    var s = ui.fq.trim().toLowerCase();
+    var rows = state.firms.filter(function(f2){
+      if (ui.ftarget && f2.target !== ui.ftarget) return false;
+      if (ui.ftier && f2.tier !== ui.ftier) return false;
+      if (ui.fgap && !(f2.target === "Yes" && firmContacts(f2.id).length === 0)) return false;
+      if (s && f2.name.toLowerCase().indexOf(s) < 0) return false;
+      return true;
+    });
+    var TO = {"Yes":0,"Maybe":1,"No":2};
+    rows.sort(function(a,b){
+      if (TO[a.target] !== TO[b.target]) return TO[a.target] - TO[b.target];
+      if ((b.interest||0) !== (a.interest||0)) return (b.interest||0) - (a.interest||0);
+      return a.name.localeCompare(b.name);
+    });
+    cnt.textContent = rows.length + " of " + state.firms.length;
+    if (!rows.length){ tb.appendChild(h("tr",{},[h("td",{colspan:"9"},[h("div",{class:"empty",text:"No firms match."})])])); return; }
+    rows.forEach(function(f2){
+      var cs = firmContacts(f2.id);
+      var rp = cs.filter(function(c){ return c.replied; }).length;
+      var gap = f2.target === "Yes" && cs.length === 0;
+      var dl = f2.deadline ? -daysSince(f2.deadline) : null;
+      var dlCell = !f2.deadline ? h("span",{class:"fresh",text:"—"})
+        : h("span",{class: (dl !== null && dl <= 14 && dl >= 0) ? "stale" : "fresh",
+            text: f2.deadline + (dl !== null && dl >= 0 && dl <= 30 ? " · " + dl + "d" : "")});
+      tb.appendChild(h("tr",{onclick:function(){ openFirm(f2.id); }},[
+        h("td",{class:"nm"},[document.createTextNode(f2.name), f2.hq ? h("span",{class:"sub",text:f2.hq}) : null]),
+        h("td",{},[document.createTextNode(f2.tier || "—")]),
+        h("td",{},[f2.interest ? h("span",{class:"pill "+(f2.interest>=4?"p-brass":f2.interest>=3?"p-slate":"p-grey"),text:"★ "+f2.interest}) : document.createTextNode("—")]),
+        h("td",{},[document.createTextNode(f2.difficulty || "—")]),
+        h("td",{},[h("span",{class:"pill "+(f2.target==="Yes"?"p-green":f2.target==="Maybe"?"p-amber":"p-grey"),text:f2.target})]),
+        h("td",{class:"num"},[gap ? h("span",{class:"stale",text:"0 · gap"}) : document.createTextNode(String(cs.length))]),
+        h("td",{class:"num"},[document.createTextNode(String(rp))]),
+        h("td",{},[document.createTextNode(f2.appStatus || "—")]),
+        h("td",{},[dlCell])
+      ]));
+    });
+  }
+  draw();
+}
+
+function openFirm(id){
+  var f = firm(id); if (!f) return;
+  var cs = firmContacts(id);
+  drawer(f.name, [f.tier, f.hq].filter(Boolean).join("  ·  "), function(body){
+    var fs1 = h("div",{class:"fieldset"},[h("div",{class:"lg",text:"Profile"})]);
+    var g1 = h("div",{class:"fgrid"});
+    g1.appendChild(field("Firm name", f.name, function(v){ f.name=v; save(); render(); }, {wide:true}));
+    g1.appendChild(field("Tier", f.tier, function(v){ f.tier=v; save(); render(); }, {type:"select", options:TIERS}));
+    g1.appendChild(field("HQ", f.hq, function(v){ f.hq=v; save(); render(); }));
+    g1.appendChild(field("Groups / coverage", f.groups, function(v){ f.groups=v; save(); }, {wide:true, ph:"Power & Utilities, RX, LevFin…"}));
+    g1.appendChild(field("Headcount", f.headcount, function(v){ f.headcount=v; save(); }));
+    g1.appendChild(field("Email pattern", f.emailPattern, function(v){ f.emailPattern=v; save(); },
+      {ph:"first.last@firm.com", hint:"Use first / last / f / l — e.g. flast@moelis.com"}));
+    fs1.appendChild(g1); body.appendChild(fs1);
+
+    var fs2 = h("div",{class:"fieldset"},[h("div",{class:"lg",text:"Recruiting logistics"})]);
+    var g2 = h("div",{class:"fgrid"});
+    g2.appendChild(field("Application status", f.appStatus, function(v){ f.appStatus=v; save(); render(); }, {type:"select", options:APPSTAT}));
+    g2.appendChild(field("Opens", f.opens, function(v){ f.opens=v; save(); }, {type:"date"}));
+    g2.appendChild(field("Deadline", f.deadline, function(v){ f.deadline=v; save(); render(); }, {type:"date"}));
+    g2.appendChild(field("Superday", f.superday, function(v){ f.superday=v; save(); }, {type:"date"}));
+    fs2.appendChild(g2);
+    var rcb = h("input",{type:"checkbox"}); rcb.checked = !!f.referral;
+    rcb.addEventListener("change", function(){ f.referral = rcb.checked; save(); });
+    fs2.appendChild(h("label",{class:"checkline"},[rcb, document.createTextNode("Referral secured")]));
+    body.appendChild(fs2);
+
+    var fs3 = h("div",{class:"fieldset"},[h("div",{class:"lg",text:"My angle in"})]);
+    var g3 = h("div",{class:"fgrid"});
+    g3.appendChild(field("Target?", f.target, function(v){ f.target=v; save(); render(); }, {type:"select", options:["Yes","Maybe","No"]}));
+    g3.appendChild(field("Interest (1–5)", String(f.interest||""), function(v){ f.interest=parseInt(v,10)||0; save(); render(); }, {type:"select", options:["","1","2","3","4","5"]}));
+    g3.appendChild(field("Difficulty", f.difficulty, function(v){ f.difficulty=v; save(); render(); }, {type:"select", options:DIFF}));
+    g3.appendChild(field("Target group", f.targetGroup, function(v){ f.targetGroup=v; save(); }, {ph:"Restructuring"}));
+    g3.appendChild(field("Alumni count", f.alumni, function(v){ f.alumni=v; save(); }));
+    g3.appendChild(field("Why this firm", f.whyFirm, function(v){ f.whyFirm=v; save(); }, {type:"textarea", wide:true}));
+    fs3.appendChild(g3); body.appendChild(fs3);
+
+    var fs4 = h("div",{class:"fieldset"},[h("div",{class:"lg",text:"Market notes"})]);
+    fs4.appendChild(field("Recent deals", f.deals, function(v){ f.deals=v; save(); }, {type:"textarea", wide:true, ph:"Used by the {{Deal}} merge field in cold emails"}));
+    fs4.appendChild(field("Sector strengths", f.sectors, function(v){ f.sectors=v; save(); }, {type:"textarea", wide:true}));
+    body.appendChild(fs4);
+
+    var fs5 = h("div",{class:"fieldset"},[h("div",{class:"lg",text:"Contacts here (" + cs.length + ")"})]);
+    if (!cs.length) fs5.appendChild(h("div",{class:"hint",text:"Nobody yet." + (f.target==="Yes" ? " This is a coverage gap." : "")}));
+    cs.forEach(function(c){
+      fs5.appendChild(h("div",{class:"gap"},[
+        h("span",{class:"dot d"+c.priority}),
+        h("span",{class:"fn",text:fullName(c) + (c.title ? "  ·  " + c.title : "")}),
+        h("span",{class:"pill "+stageClass(c.stage),text:c.stage}),
+        h("button",{class:"btn sm ghost",text:"Open",onclick:function(){ openContact(c.id); }})
+      ]));
+    });
+    body.appendChild(fs5);
+  }, function(foot){
+    foot.appendChild(h("button",{class:"btn primary",text:"Done",onclick:function(){ flush(); closeLayer(); }}));
+    foot.appendChild(h("span",{class:"spacer"}));
+    foot.appendChild(h("button",{class:"btn danger sm",text:"Delete firm",onclick:function(){
+      if (firmContacts(f.id).length){ toast("Move or delete its contacts first"); return; }
+      if (!confirm("Delete " + f.name + "?")) return;
+      state.firms = state.firms.filter(function(x){ return x.id !== f.id; });
+      save(); closeLayer(); render();
+    }}));
+  });
+}
+
+/* ================= COMPOSE ================= */
+function mergeMap(c){
+  var f = firm(c.firmId) || {};
+  var p = state.profile;
+  return {
+    FirstName: c.first, LastName: c.last, Name: fullName(c),
+    Firm: f.name || "", Group: c.group || f.targetGroup || "", Title: c.title || "",
+    Office: c.office || "", Connection: c.connection || "", School: c.school || "",
+    GradYear: c.year || "", Deal: f.deals || "", Sectors: f.sectors || "",
+    CallDate: c.callDate || "",
+    MyName: p.name, MySchool: p.school, MyYear: p.year, MyMajor: p.major, MyGroups: p.groups
+  };
+}
+function fill(tpl, map){
+  return String(tpl||"").replace(/\{\{(\w+)\}\}/g, function(_, k){
+    var v = map[k];
+    return (v === undefined || v === null || v === "") ? "‹" + k + "›" : v;
+  });
+}
+function missingFields(txt){
+  var out = [], re = /‹(\w+)›/g, m;
+  while ((m = re.exec(txt))) if (out.indexOf(m[1]) < 0) out.push(m[1]);
+  return out;
+}
+
+function viewCompose(v){
+  if (!state.contacts.length){ v.appendChild(h("div",{class:"empty",text:"Add a contact first."})); return; }
+  var c = contact(ui.composeTo) || state.contacts[0];
+  ui.composeTo = c.id;
+  var tpl = state.templates.filter(function(t){ return t.id === ui.composeTpl; })[0] || state.templates[0];
+  ui.composeTpl = tpl.id;
+
+  var bar = h("div",{class:"filters"});
+  var cs = h("select");
+  state.contacts.slice().sort(function(a,b){ return fullName(a).localeCompare(fullName(b)); })
+    .forEach(function(x){
+      cs.appendChild(h("option",{value:x.id, text: fullName(x) + " — " + (firmName(x.firmId)||"no firm"), selected: x.id===c.id?"selected":null}));
+    });
+  cs.addEventListener("change", function(){
+    ui.composeTo = cs.value; ui.draft = null; ssSet("cov.to", cs.value); render();
+  });
+  bar.appendChild(h("span",{class:"count",text:"TO"}));
+  bar.appendChild(cs);
+  bar.appendChild(h("span",{class:"spacer"}));
+  bar.appendChild(h("button",{class:"btn sm",text:"Open contact",onclick:function(){ openContact(c.id); }}));
+  v.appendChild(bar);
+
+  var wrap = h("div",{class:"composewrap"});
+  var list = h("div",{class:"tmpl-list"},[h("div",{class:"lg",text:"Templates"})]);
+  state.templates.forEach(function(t){
+    list.appendChild(h("button",{class:"tmpl"+(t.id===tpl.id?" on":""),text:t.name,onclick:function(){
+      ui.composeTpl = t.id; ui.draft = null; render();
+    }}));
+  });
+  wrap.appendChild(list);
+
+  var map = mergeMap(c);
+  var subj = fill(tpl.subject, map);
+  var bodyTxt = ui.draft !== null && ui.draft !== undefined ? ui.draft : fill(tpl.body, map);
+
+  var card = h("div",{class:"mailcard"});
+  var head = h("div",{class:"mailhead"});
+  var emailTxt = c.email || "— no address on file —";
+  head.appendChild(h("div",{class:"mailrow"},[
+    h("span",{class:"lbl",text:"To"}),
+    h("span",{class:"val"},[
+      document.createTextNode(emailTxt),
+      c.email ? h("span",{class:"pill "+(c.emailConf==="verified"?"p-green":c.emailConf==="bounced"?"p-red":"p-amber"),
+        text:c.emailConf}) : null
+    ])
+  ]));
+  var subjIn = h("input",{type:"text",value:subj});
+  subjIn.style.cssText = "border:0;background:none;width:100%;font-size:.92rem;padding:0";
+  head.appendChild(h("div",{class:"mailrow"},[h("span",{class:"lbl",text:"Subj"}), h("span",{class:"val",style:"flex:1"},[subjIn])]));
+  card.appendChild(head);
+
+  var ta = h("textarea",{id:"mailbody"});
+  ta.value = bodyTxt;
+  ta.addEventListener("input", function(){ ui.draft = ta.value; updateWarn(); });
+  card.appendChild(ta);
+
+  var foot = h("div",{class:"mailfoot"});
+  var warn = h("span",{});
+  function updateWarn(){
+    clear(warn);
+    var miss = missingFields(ta.value + " " + subjIn.value);
+    var cl = tpl.customLine ? fill(tpl.customLine, map) : "";
+    var untouched = cl && ta.value.indexOf(cl) >= 0;
+    if (miss.length) warn.appendChild(h("span",{class:"warnline",text:"blanks: " + miss.join(", ")}));
+    else if (untouched) warn.appendChild(h("span",{class:"warnline",text:"custom line not written yet"}));
+    else warn.appendChild(h("span",{class:"okline",text:"ready to send"}));
+  }
+  foot.appendChild(h("button",{class:"btn primary",text:"Copy email",onclick:function(){
+    var txt = ta.value;
+    navigator.clipboard.writeText(txt).then(function(){ toast("Copied"); }, function(){
+      ta.select(); document.execCommand("copy"); toast("Copied");
+    });
+  }}));
+  foot.appendChild(h("button",{class:"btn",text:"Copy subject",onclick:function(){
+    navigator.clipboard.writeText(subjIn.value).then(function(){ toast("Subject copied"); });
+  }}));
+  foot.appendChild(h("button",{class:"btn",text:"Log as sent",onclick:function(){
+    logEmail(c);
+    c.notes = c.notes || [];
+    c.notes.unshift({d: today(), t: "Sent: " + subjIn.value});
+    ui.draft = null; save(); render(); toast("Logged — " + c.stage);
+  }}));
+  foot.appendChild(h("button",{class:"btn ghost sm",text:"Reset to template",onclick:function(){ ui.draft = null; render(); }}));
+  foot.appendChild(h("span",{class:"spacer"}));
+  foot.appendChild(warn);
+  card.appendChild(foot);
+  updateWarn();
+
+  wrap.appendChild(card);
+  v.appendChild(wrap);
+
+  var tip = h("div",{class:"sectitle"},[h("span",{class:"e",text:"Reminder"})]);
+  v.appendChild(tip);
+  v.appendChild(h("div",{class:"hint",style:"color:var(--muted);font-size:.88rem;max-width:70ch",
+    text:"Rewrite the marked custom line before sending — it is the only part of the email that proves you did not mass-blast it. “Log as sent” advances the stage, stamps today, bumps the touch count and writes the subject into the notes log."}));
+}
+
+/* ================= SETTINGS ================= */
+function viewSettings(v){
+  var p = state.profile;
+  v.appendChild(h("div",{class:"sectitle"},[h("h2",{text:"Your profile"}),h("span",{class:"e",text:"fills the merge fields"})]));
+  var c1 = h("div",{class:"setcard"});
+  var g = h("div",{class:"fgrid"});
+  g.appendChild(field("Name", p.name, function(x){ p.name=x; save(); }));
+  g.appendChild(field("School", p.school, function(x){ p.school=x; save(); }));
+  g.appendChild(field("Class year", p.year, function(x){ p.year=x; save(); }));
+  g.appendChild(field("Major", p.major, function(x){ p.major=x; save(); }, {wide:true}));
+  g.appendChild(field("Target groups", p.groups, function(x){ p.groups=x; save(); }, {wide:true}));
+  g.appendChild(field("Your email", p.email, function(x){ p.email=x; save(); }));
+  g.appendChild(field("Bump interval (days)", String(state.settings.bumpDays), function(x){
+    state.settings.bumpDays = parseInt(x,10)||7; save(); }, {type:"number"}));
+  c1.appendChild(g);
+  v.appendChild(c1);
+
+  v.appendChild(h("div",{class:"sectitle"},[h("h2",{text:"Templates"}),h("span",{class:"e",text:"{{merge fields}} pull from the contact, their firm, and your profile"})]));
+  var c2 = h("div",{class:"setcard"});
+  c2.appendChild(h("div",{class:"hint",style:"color:var(--muted)",
+    text:"Available: FirstName LastName Firm Group Title Office Connection School GradYear Deal Sectors CallDate MyName MySchool MyYear MyMajor MyGroups"}));
+  state.templates.forEach(function(t, i){
+    var box = h("div",{class:"tmpl-edit"});
+    box.appendChild(field("Template name", t.name, function(x){ t.name=x; save(); render(); }, {wide:true}));
+    box.appendChild(field("Subject", t.subject, function(x){ t.subject=x; save(); }, {wide:true}));
+    box.appendChild(field("Body", t.body, function(x){ t.body=x; save(); }, {type:"textarea", wide:true}));
+    box.appendChild(field("Custom line (must be rewritten before sending)", t.customLine, function(x){ t.customLine=x; save(); }, {wide:true}));
+    box.appendChild(h("div",{class:"filters"},[
+      h("button",{class:"btn sm danger",text:"Delete template",onclick:function(){
+        if (state.templates.length < 2){ toast("Keep at least one"); return; }
+        if (!confirm("Delete “" + t.name + "”?")) return;
+        state.templates.splice(i,1); save(); render();
+      }})
+    ]));
+    c2.appendChild(box);
+  });
+  c2.appendChild(h("button",{class:"btn",text:"+ New template",onclick:function(){
+    state.templates.push({id:uid("t"), name:"Untitled", subject:"", body:"Hi {{FirstName}},\n\n", customLine:""});
+    save(); render();
+  }}));
+  v.appendChild(c2);
+
+  v.appendChild(h("div",{class:"sectitle"},[h("h2",{text:"Stages"}),h("span",{class:"e",text:"rename or reorder — one per line"})]));
+  var c3 = h("div",{class:"setcard"});
+  c3.appendChild(field("Pipeline stages", state.stages.join("\n"), function(x){
+    var arr = x.split("\n").map(function(s){ return s.trim(); }).filter(Boolean);
+    if (arr.length){ state.stages = arr; save(); render(); }
+  }, {type:"textarea", wide:true}));
+  v.appendChild(c3);
+
+  v.appendChild(h("div",{class:"sectitle"},[h("h2",{text:"Data"}),h("span",{class:"e",text:"backup"})]));
+  var c4 = h("div",{class:"setcard"});
+  c4.appendChild(h("div",{class:"filters"},[
+    h("button",{class:"btn",text:"Copy all data as JSON",onclick:function(){
+      navigator.clipboard.writeText(JSON.stringify(state,null,1)).then(function(){ toast("Copied — paste somewhere safe"); });
+    }}),
+    h("button",{class:"btn",text:"Copy contacts as CSV",onclick:function(){
+      var head = ["Name","Firm","Title","Group","Office","Connection","Email","Stage","Priority","Last contact","Next action","Touches","Replied","Referral","Notes"];
+      var lines = [head.join(",")];
+      state.contacts.forEach(function(c){
+        var row = [fullName(c), firmName(c.firmId), c.title, c.group, c.office, c.connection, c.email,
+          c.stage, "P"+c.priority, c.lastContact, c.nextAction, c.touches, c.replied?"Yes":"No",
+          c.referral?"Yes":"No", (c.notes||[]).map(function(n){return n.d+": "+n.t;}).join(" | ")];
+        lines.push(row.map(function(x){ return '"' + String(x==null?"":x).replace(/"/g,'""') + '"'; }).join(","));
+      });
+      navigator.clipboard.writeText(lines.join("\n")).then(function(){ toast("CSV copied"); });
+    }})
+  ]));
+  c4.appendChild(h("div",{class:"hint",style:"color:var(--muted)",
+    text:"Your records live in this page's own private store, not in the page file — republishing the app never touches them. Copy a JSON backup before any big cleanup."}));
+  var imp = h("textarea",{placeholder:"Paste a JSON backup here\u2026"});
+  imp.style.minHeight = "70px";
+  c4.appendChild(h("div",{class:"f wide"},[h("label",{text:"Restore from backup"}), imp]));
+  c4.appendChild(h("div",{class:"filters"},[
+    h("button",{class:"btn danger",text:"Replace all data",onclick:function(){
+      var parsed;
+      try { parsed = JSON.parse(imp.value); }
+      catch(e){ toast("That is not valid JSON"); return; }
+      if (!parsed || !Array.isArray(parsed.contacts) || !Array.isArray(parsed.firms)){
+        toast("Backup is missing its contacts or firms"); return;
+      }
+      if (!confirm("Replace all " + state.contacts.length + " contacts and " +
+        state.firms.length + " firms with " + parsed.contacts.length + " contacts and " +
+        parsed.firms.length + " firms? This cannot be undone.")) return;
+      state.contacts = parsed.contacts;
+      state.firms = parsed.firms;
+      if (parsed.profile) state.profile = parsed.profile;
+      if (parsed.settings) state.settings = parsed.settings;
+      if (parsed.stages && parsed.stages.length) state.stages = parsed.stages;
+      if (parsed.templates && parsed.templates.length) state.templates = parsed.templates;
+      written = {};
+      save(); render(); toast("Restored " + parsed.contacts.length + " contacts");
+    }})
+  ]));
+  v.appendChild(c4);
+}
+
+/* ---------- boot ---------- */
+$("addbtn").addEventListener("click", addContactForm);
+setFlag("loading…", "on");
+document.addEventListener("keydown", function(e){
+  if (e.key === "n" && (e.metaKey || e.ctrlKey)){ e.preventDefault(); addContactForm(); }
+});
+safeRender();
+boot().then(function(){ safeRender(); if (dirty) flush(); },
+           function(){ ready = true; safeRender(); });
+function safeRender(){
+try { render(); } catch(err){
+  $("view").appendChild(h("div",{class:"empty",text:"Something broke while rendering: " + (err && err.message)}));
+  if (window.console) console.error(err);
+}
+}
+})();
+</script>
