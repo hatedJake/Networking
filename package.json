@@ -1,0 +1,52 @@
+{
+  "name": "coverage",
+  "productName": "Coverage",
+  "version": "1.1.0",
+  "description": "A recruiting-pipeline CRM for tracking bankers, firms and outreach.",
+  "author": "hatedJake",
+  "private": true,
+  "license": "UNLICENSED",
+  "main": "electron/main.js",
+  "scripts": {
+    "electron": "electron .",
+    "start": "electron .",
+    "dist:mac": "electron-builder --mac",
+    "dist:win": "electron-builder --win",
+    "dist:linux": "electron-builder --linux"
+  },
+  "devDependencies": {
+    "electron": "^44.1.0",
+    "electron-builder": "^26.15.3"
+  },
+  "build": {
+    "appId": "com.hatedjake.coverage",
+    "productName": "Coverage",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "electron/**/*",
+      "assets/**/*",
+      "index.html",
+      "package.json"
+    ],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "icon": "build/icon.png",
+      "target": ["dmg"]
+    },
+    "dmg": {
+      "title": "Coverage"
+    },
+    "win": {
+      "icon": "build/icon.png",
+      "target": ["nsis"]
+    },
+    "linux": {
+      "icon": "build/icon.png",
+      "category": "Office",
+      "target": ["AppImage"]
+    }
+  }
+}

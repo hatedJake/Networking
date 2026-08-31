@@ -1,8 +1,13 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
 <title>Coverage</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Spectral:wght@400;600;700&family=Public+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<!-- Spectral, Public Sans and IBM Plex Mono, self-hosted under assets/.
+     Deliberately not the Google Fonts CDN: a stylesheet the browser cannot
+     reach blocks every inline script behind it, so with no network the app
+     came up as a blank page instead of an unstyled one. -->
+<link rel="stylesheet" href="assets/fonts.css">
 
 <style>
 :root{
@@ -243,6 +248,40 @@ td .sub{display:block;font-size:.72rem;color:var(--faint);font-weight:400;
 .note:hover .del{opacity:1}
 .note .del:hover{color:var(--crimson)}
 
+/* ============ contact log ============ */
+.logquick{display:flex;flex-wrap:wrap;gap:5px}
+.logquick button{
+  border:1px solid var(--rule);background:var(--card);border-radius:3px;cursor:pointer;
+  padding:3px 8px;font-family:"IBM Plex Mono",monospace;font-size:.66rem;color:var(--muted);
+}
+.logquick button:hover{border-color:var(--brass);color:var(--brass)}
+.logquick button.on{background:var(--brass);border-color:var(--brass);color:var(--card)}
+.logform{display:flex;flex-direction:column;gap:10px;background:var(--sunk);
+  border:1px solid var(--rule);border-radius:4px;padding:12px}
+.logform .filters{margin-bottom:0}
+.logfeed{display:flex;flex-direction:column;gap:0}
+.logitem{padding:11px 0;border-bottom:1px solid var(--rule-soft);display:flex;gap:12px;align-items:flex-start}
+.logitem:last-child{border-bottom:0}
+.logitem .when{font-family:"IBM Plex Mono",monospace;font-size:.68rem;color:var(--faint);
+  flex:0 0 74px;padding-top:4px;letter-spacing:.02em;white-space:nowrap}
+.logitem .core{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}
+.logitem .top{display:flex;flex-wrap:wrap;gap:7px;align-items:center}
+.logitem .sm2{font-size:.89rem;word-break:break-word}
+.logitem .det{font-size:.83rem;color:var(--muted);white-space:pre-wrap;word-break:break-word}
+.logitem .det.clip{max-height:5.6em;overflow:hidden;
+  -webkit-mask-image:linear-gradient(var(--ink) 62%,transparent);mask-image:linear-gradient(var(--ink) 62%,transparent)}
+.logitem .more{align-self:flex-start;background:none;border:0;cursor:pointer;padding:0;
+  font-family:"IBM Plex Mono",monospace;font-size:.66rem;letter-spacing:.06em;color:var(--brass)}
+.logitem .more:hover{text-decoration:underline}
+.logitem .acts{display:flex;gap:2px;opacity:0;flex:0 0 auto}
+.logitem:hover .acts{opacity:1}
+.logitem .acts button{background:none;border:0;color:var(--faint);font-size:.9rem;
+  padding:0 4px;cursor:pointer;line-height:1.2}
+.logitem .acts button:hover{color:var(--ink)}
+.logitem .acts button.del:hover{color:var(--crimson)}
+.dirtag{font-family:"IBM Plex Mono",monospace;font-size:.66rem;color:var(--faint);letter-spacing:.06em}
+.logempty{padding:14px 0;color:var(--faint);font-size:.86rem}
+
 /* ============ stage rail ============ */
 .rail{display:flex;flex-wrap:wrap;gap:5px}
 .rail button{
@@ -309,9 +348,17 @@ td .sub{display:block;font-size:.72rem;color:var(--faint);font-weight:400;
   text-transform:uppercase;color:var(--faint)}
 .hr{height:1px;background:var(--rule);border:0;margin:0}
 @media(max-width:620px){
-  .topbar-in{gap:8px;padding:0 12px}
+  .topbar-in{gap:8px;padding:0 12px;flex-wrap:wrap;height:auto}
   .brand{display:none}
-  nav.tabs button{padding:0 10px;font-size:.9rem}
+  nav.tabs button{padding:0 10px;font-size:.9rem;flex:0 0 auto}
+  /* five tabs do not fit beside the actions on a phone, so the strip drops to
+     its own full-width row and scrolls rather than widening the header */
+  .topbar-right{order:1;height:48px}
+  nav.tabs{order:2;flex:1 0 100%;margin-left:0;height:42px;
+    border-top:1px solid var(--rule);
+    min-width:0;overflow-x:auto;overflow-y:hidden;
+    scrollbar-width:none;-ms-overflow-style:none}
+  nav.tabs::-webkit-scrollbar{display:none}
   .page{padding:16px 12px 80px}
   .tablewrap{max-height:none;overflow:auto hidden;overflow-x:auto}
   thead th{position:static}
@@ -333,7 +380,7 @@ td .sub{display:block;font-size:.72rem;color:var(--faint);font-weight:400;
 <main class="page" id="view"></main>
 <div id="layer"></div>
 
-<!--STATE_START--><script id="app-state" type="application/json">{"profile":{"name":"Your Name","school":"Your University","year":"2028","major":"Your Major","groups":"M&A, Restructuring, and LevFin","email":""},"settings":{"bumpDays":7,"groups":["Power & Utilities","Restructuring","Lev Fin","M&A","Generalist","Sponsors","Industrials","Healthcare","TMT","FIG","Consumer Retail","ECM","DCM","Structured Products","Natural Resources","Real Estate"]},"stages":["Not Contacted","Emailed","Follow-Up 1","Follow-Up 2","Replied","Call Scheduled","Call Done","Thank-You Sent","Advocate","Dead"],"templates":[{"id":"t1","name":"Cold intro \u2014 alum","subject":"{{MySchool}} {{MyYear}} \u2014 question about {{Group}} at {{Firm}}","body":"Hi {{FirstName}},\n\nI'm a student at {{MySchool}} studying {{MyMajor}}, and I came across your name while reading about {{Firm}}. As a fellow alum a few years ahead of me, I wanted to reach out.\n\nMy interest sits in {{MyGroups}}, so the {{Group}} team at {{Firm}} is exactly the kind of seat I'm trying to understand better before recruiting picks up.\n\nWould you have 15 minutes in the next couple of weeks for a short call? I'd love to hear how you landed in {{Group}} and what the group is actually like day to day. Happy to work entirely around your schedule.\n\nBest,\n{{MyName}}\n{{MySchool}} {{MyYear}}  |  {{MyMajor}}","customLine":"My interest sits in {{MyGroups}}, so the {{Group}} team at {{Firm}} is exactly the kind of seat I'm trying to understand better before recruiting picks up."},{"id":"t2","name":"Cold intro \u2014 shared org","subject":"{{Connection}} \u2014 {{MySchool}} student interested in {{Group}}","body":"Hi {{FirstName}},\n\nI'm a student at {{MySchool}} studying {{MyMajor}}. I found you through {{Connection}}, and given you're now in {{Group}} at {{Firm}} I wanted to introduce myself.\n\nI've been focused on {{MyGroups}}, and I'd value hearing how you think about {{Group}} from the inside rather than from a pitchbook.\n\nAny chance you'd have 15 minutes over the next two weeks? I'm flexible early mornings or evenings and happy to keep it short.\n\nBest,\n{{MyName}}\n{{MySchool}} {{MyYear}}  |  {{MyMajor}}","customLine":"I've been focused on {{MyGroups}}, and I'd value hearing how you think about {{Group}} from the inside rather than from a pitchbook."},{"id":"t3","name":"Cold intro \u2014 no link","subject":"{{MySchool}} student \u2014 15 minutes on {{Group}} at {{Firm}}?","body":"Hi {{FirstName}},\n\nI'm a student at {{MySchool}} studying {{MyMajor}}, and I've been working to understand {{MyGroups}} ahead of recruiting. Your background in {{Group}} at {{Firm}} stood out to me.\n\n{{Firm}}'s recent work on {{Deal}} is part of why I've been reading about the platform specifically rather than casting a wide net.\n\nI know your time is tight \u2014 would 15 minutes in the next few weeks be possible? I'd be grateful for it, and I'll come with specific questions.\n\nBest,\n{{MyName}}\n{{MySchool}} {{MyYear}}  |  {{MyMajor}}","customLine":"{{Firm}}'s recent work on {{Deal}} is part of why I've been reading about the platform specifically rather than casting a wide net."},{"id":"t4","name":"Follow-up bump","subject":"Re: {{MySchool}} {{MyYear}} \u2014 question about {{Group}} at {{Firm}}","body":"Hi {{FirstName}},\n\nJust floating this back to the top of your inbox in case it got buried \u2014 completely understand if now isn't a good time.\n\nStill would love 15 minutes whenever your schedule allows, and I'm happy to send questions over email instead if that's easier.\n\nBest,\n{{MyName}}\n{{MySchool}} {{MyYear}}  |  {{MyMajor}}","customLine":""},{"id":"t5","name":"Post-call thank-you","subject":"Thank you \u2014 {{Firm}}","body":"Hi {{FirstName}},\n\nThank you for taking the time to speak with me. It was genuinely useful.\n\nWhat you said about how {{Group}} staffs juniors changed how I'm thinking about which teams to target this cycle, and I'm going to dig into what you mentioned.\n\nI'll keep you posted on how recruiting goes, and please let me know if there's ever anything I can do on my end. Thanks again.\n\nBest,\n{{MyName}}\n{{MySchool}} {{MyYear}}  |  {{MyMajor}}","customLine":"What you said about how {{Group}} staffs juniors changed how I'm thinking about which teams to target this cycle, and I'm going to dig into what you mentioned."},{"id":"t6","name":"Referral ask","subject":"{{Firm}} application \u2014 quick ask","body":"Hi {{FirstName}},\n\nHope things have been busy in a good way at {{Firm}}.\n\nI wanted to let you know the {{Firm}} application is open and I've submitted for {{Group}}. Given our conversation, I wanted to ask directly: would you be comfortable passing my name along to your recruiting team or the staffer for the group?\n\nCompletely understand if that's not something you're able to do. Either way I'm grateful for the time you already gave me. I've attached my resume in case it's useful.\n\nBest,\n{{MyName}}\n{{MySchool}} {{MyYear}}  |  {{MyMajor}}","customLine":"I wanted to let you know the {{Firm}} application is open and I've submitted for {{Group}}. Given our conversation, I wanted to ask directly: would you be comfortable passing my name along to your recruiting team or the staffer for the group?"},{"id":"t7","name":"Semester check-in","subject":"Checking in \u2014 {{MySchool}}","body":"Hi {{FirstName}},\n\nHope the semester has treated you well. I wanted to check in and share a quick update.\n\nI've kept building toward {{MyGroups}} this semester and wanted to keep you in the loop as recruiting gets closer.\n\nWould be glad to catch up briefly if you have time \u2014 and if there's anything happening at {{Firm}} I should know about, I'd welcome the steer.\n\nBest,\n{{MyName}}\n{{MySchool}} {{MyYear}}  |  {{MyMajor}}","customLine":"I've kept building toward {{MyGroups}} this semester and wanted to keep you in the loop as recruiting gets closer."}],"firms":[{"id":"f1","name":"Evercore","tier":"Elite Boutique","interest":5,"difficulty":"","target":"Yes","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f2","name":"Centerview","tier":"Elite Boutique","interest":5,"difficulty":"","target":"Yes","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f3","name":"Goldman Sachs","tier":"Bulge Bracket","interest":5,"difficulty":"","target":"Yes","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f4","name":"JP Morgan","tier":"Bulge Bracket","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f5","name":"Morgan Stanley","tier":"Bulge Bracket","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f6","name":"Moelis","tier":"Elite Boutique","interest":4,"difficulty":"","target":"Yes","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f7","name":"Lazard","tier":"Elite Boutique","interest":4,"difficulty":"","target":"Yes","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f8","name":"Bank of America","tier":"Bulge Bracket","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f9","name":"Liontree","tier":"Elite Boutique","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f10","name":"PJT Partners","tier":"Elite Boutique","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f11","name":"Deutsche Bank","tier":"Bulge Bracket","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f12","name":"RBC","tier":"Bulge Bracket","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f13","name":"Wells Fargo Securities","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f14","name":"Oppenheimer","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f15","name":"Financial Technology Partners","tier":"Elite Boutique","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f16","name":"Macquarie","tier":"Elite Boutique","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f17","name":"Greenhill (Mizuho)","tier":"Elite Boutique","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f18","name":"M. Klein & Co.","tier":"Elite Boutique","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f19","name":"Harris Williams","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f20","name":"Perella Weinberg","tier":"Elite Boutique","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f21","name":"Qatalyst","tier":"Elite Boutique","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f22","name":"Barclays","tier":"Bulge Bracket","interest":3,"difficulty":"","target":"Yes","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f23","name":"UBS","tier":"Bulge Bracket","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f24","name":"Baird","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f25","name":"Piper Sandler","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f26","name":"Citi","tier":"Bulge Bracket","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f27","name":"Raymond James","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f28","name":"Guggenheim","tier":"Elite Boutique","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f29","name":"Houlihan Lokey","tier":"Middle Market","interest":4,"difficulty":"","target":"Yes","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f30","name":"Rothschild","tier":"Elite Boutique","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f31","name":"William Blair","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f32","name":"Aeris Partners","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f33","name":"Agentis Capital","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f34","name":"BDO Global","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f35","name":"BNY Mellon","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f36","name":"Brown Gibbons Lang & Company","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f37","name":"Campbell Lutyens","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f38","name":"Carlsquare","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f39","name":"CIBC","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f40","name":"CICC","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f41","name":"Credit Agricole","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f42","name":"DC Advisory","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f43","name":"Ducera Partners","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f44","name":"Eastdil Secured","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f45","name":"Fenchurch Advisory","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f46","name":"Gleacher Shacklock","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f47","name":"Leerink Partners","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f48","name":"Lloyds Banking Group","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f49","name":"Loop Capital","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f50","name":"MTS Partners","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f51","name":"MUFG","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f52","name":"Natwest Markets","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f53","name":"Nomura","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f54","name":"Panmure Gordon","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f55","name":"Peel Hunt","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f56","name":"Rede Partners","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f57","name":"Santander","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f58","name":"Scotiabank","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f59","name":"Standard Chartered","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f60","name":"Stifel","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f61","name":"Stout","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f62","name":"TD Cowen","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f63","name":"Torch Partners","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f64","name":"Union Square Advisors","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f65","name":"BlackArch","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f66","name":"KeyBanc","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f67","name":"HSBC","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f68","name":"Societe Generale","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f69","name":"BnP Paribas","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f70","name":"Lincoln International","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f71","name":"DA Davidson","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f72","name":"Cowen","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f73","name":"Deloitte (TAS)","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f74","name":"PwC (TAS)","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f75","name":"KBW","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f76","name":"BMO Capital Markets","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f77","name":"BB&T","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f78","name":"TD Securities","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f79","name":"LEK Consulting","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f80","name":"Brown Brothers Harriman","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f81","name":"Wedbush Securities","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f82","name":"Stephens","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f83","name":"Westlake Securities","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f84","name":"Jefferies","tier":"Middle Market","interest":3,"difficulty":"","target":"Yes","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f85","name":"Rosenblatt Securities","tier":"","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f86","name":"Blackstone","tier":"","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""}],"contacts":[{"id":"c1","first":"Alex","last":"Rivera","firmId":"f1","title":"Analyst 2","group":"M&A","office":"New York","connection":"Alumni","email":"","emailConf":"unknown","year":"","school":"","linkedin":"","stage":"Advocate","priority":1,"lastContact":"2026-01-20","nextAction":"","nextDate":"","touches":4,"replied":true,"callDate":"","referral":true,"tags":["sample"],"notes":[{"d":"2026-01-15","t":"Sample contact \u2014 delete these once you add your own."}]},{"id":"c2","first":"Priya","last":"Nair","firmId":"f2","title":"Associate","group":"Generalist","office":"New York","connection":"Alumni","email":"","emailConf":"unknown","year":"","school":"","linkedin":"","stage":"Replied","priority":1,"lastContact":"2026-01-22","nextAction":"Propose call times","nextDate":"","touches":2,"replied":true,"callDate":"","referral":false,"tags":["sample"],"notes":[{"d":"2026-01-15","t":"Sample contact. Replied stages sort to the top."}]},{"id":"c3","first":"Marcus","last":"Cole","firmId":"f6","title":"Analyst 1","group":"Restructuring","office":"New York","connection":"Referral \u2014 Rivera","email":"","emailConf":"unknown","year":"","school":"","linkedin":"","stage":"Call Done","priority":1,"lastContact":"2026-01-18","nextAction":"Send thank-you","nextDate":"","touches":3,"replied":true,"callDate":"","referral":false,"tags":["sample"],"notes":[{"d":"2026-01-15","t":"Sample contact."}]},{"id":"c4","first":"Dana","last":"Whitfield","firmId":"f7","title":"VP","group":"Power & Utilities","office":"New York","connection":"Cold","email":"","emailConf":"unknown","year":"","school":"","linkedin":"","stage":"Follow-Up 1","priority":2,"lastContact":"2026-01-02","nextAction":"Second bump","nextDate":"","touches":2,"replied":false,"callDate":"","referral":false,"tags":["sample"],"notes":[{"d":"2026-01-15","t":"Sample contact \u2014 shows the stale marker."}]},{"id":"c5","first":"Ines","last":"Duarte","firmId":"f29","title":"Analyst 1","group":"Industrials","office":"New York","connection":"Club","email":"","emailConf":"unknown","year":"","school":"","linkedin":"","stage":"Emailed","priority":2,"lastContact":"2026-01-26","nextAction":"Bump in 7 days","nextDate":"","touches":1,"replied":false,"callDate":"","referral":false,"tags":["sample"],"notes":[{"d":"2026-01-15","t":"Sample contact."}]},{"id":"c6","first":"Tom","last":"Becker","firmId":"f84","title":"MD","group":"LevFin","office":"New York","connection":"Info session","email":"","emailConf":"unknown","year":"","school":"","linkedin":"","stage":"Not Contacted","priority":3,"lastContact":"","nextAction":"Draft cold intro","nextDate":"","touches":0,"replied":false,"callDate":"","referral":false,"tags":["sample"],"notes":[{"d":"2026-01-15","t":"Sample contact."}]}]}</script><!--STATE_END-->
+<!--STATE_START--><script id="app-state" type="application/json">{"profile":{"name":"Your Name","school":"Your University","year":"2028","major":"Your Major","groups":"M&A, Restructuring, and LevFin","email":""},"settings":{"bumpDays":7,"groups":["Power & Utilities","Restructuring","Lev Fin","M&A","Generalist","Sponsors","Industrials","Healthcare","TMT","FIG","Consumer Retail","ECM","DCM","Structured Products","Natural Resources","Real Estate"]},"stages":["Not Contacted","Emailed","Follow-Up 1","Follow-Up 2","Replied","Call Scheduled","Call Done","Thank-You Sent","Advocate","Dead","N/A"],"templates":[{"id":"t1","name":"Cold intro \u2014 alum","subject":"{{MySchool}} {{MyYear}} \u2014 question about {{Group}} at {{Firm}}","body":"Hi {{FirstName}},\n\nI'm a student at {{MySchool}} studying {{MyMajor}}, and I came across your name while reading about {{Firm}}. As a fellow alum a few years ahead of me, I wanted to reach out.\n\nMy interest sits in {{MyGroups}}, so the {{Group}} team at {{Firm}} is exactly the kind of seat I'm trying to understand better before recruiting picks up.\n\nWould you have 15 minutes in the next couple of weeks for a short call? I'd love to hear how you landed in {{Group}} and what the group is actually like day to day. Happy to work entirely around your schedule.\n\nBest,\n{{MyName}}\n{{MySchool}} {{MyYear}}  |  {{MyMajor}}","customLine":"My interest sits in {{MyGroups}}, so the {{Group}} team at {{Firm}} is exactly the kind of seat I'm trying to understand better before recruiting picks up."},{"id":"t2","name":"Cold intro \u2014 shared org","subject":"{{Connection}} \u2014 {{MySchool}} student interested in {{Group}}","body":"Hi {{FirstName}},\n\nI'm a student at {{MySchool}} studying {{MyMajor}}. I found you through {{Connection}}, and given you're now in {{Group}} at {{Firm}} I wanted to introduce myself.\n\nI've been focused on {{MyGroups}}, and I'd value hearing how you think about {{Group}} from the inside rather than from a pitchbook.\n\nAny chance you'd have 15 minutes over the next two weeks? I'm flexible early mornings or evenings and happy to keep it short.\n\nBest,\n{{MyName}}\n{{MySchool}} {{MyYear}}  |  {{MyMajor}}","customLine":"I've been focused on {{MyGroups}}, and I'd value hearing how you think about {{Group}} from the inside rather than from a pitchbook."},{"id":"t3","name":"Cold intro \u2014 no link","subject":"{{MySchool}} student \u2014 15 minutes on {{Group}} at {{Firm}}?","body":"Hi {{FirstName}},\n\nI'm a student at {{MySchool}} studying {{MyMajor}}, and I've been working to understand {{MyGroups}} ahead of recruiting. Your background in {{Group}} at {{Firm}} stood out to me.\n\n{{Firm}}'s recent work on {{Deal}} is part of why I've been reading about the platform specifically rather than casting a wide net.\n\nI know your time is tight \u2014 would 15 minutes in the next few weeks be possible? I'd be grateful for it, and I'll come with specific questions.\n\nBest,\n{{MyName}}\n{{MySchool}} {{MyYear}}  |  {{MyMajor}}","customLine":"{{Firm}}'s recent work on {{Deal}} is part of why I've been reading about the platform specifically rather than casting a wide net."},{"id":"t4","name":"Follow-up bump","subject":"Re: {{MySchool}} {{MyYear}} \u2014 question about {{Group}} at {{Firm}}","body":"Hi {{FirstName}},\n\nJust floating this back to the top of your inbox in case it got buried \u2014 completely understand if now isn't a good time.\n\nStill would love 15 minutes whenever your schedule allows, and I'm happy to send questions over email instead if that's easier.\n\nBest,\n{{MyName}}\n{{MySchool}} {{MyYear}}  |  {{MyMajor}}","customLine":""},{"id":"t5","name":"Post-call thank-you","subject":"Thank you \u2014 {{Firm}}","body":"Hi {{FirstName}},\n\nThank you for taking the time to speak with me. It was genuinely useful.\n\nWhat you said about how {{Group}} staffs juniors changed how I'm thinking about which teams to target this cycle, and I'm going to dig into what you mentioned.\n\nI'll keep you posted on how recruiting goes, and please let me know if there's ever anything I can do on my end. Thanks again.\n\nBest,\n{{MyName}}\n{{MySchool}} {{MyYear}}  |  {{MyMajor}}","customLine":"What you said about how {{Group}} staffs juniors changed how I'm thinking about which teams to target this cycle, and I'm going to dig into what you mentioned."},{"id":"t6","name":"Referral ask","subject":"{{Firm}} application \u2014 quick ask","body":"Hi {{FirstName}},\n\nHope things have been busy in a good way at {{Firm}}.\n\nI wanted to let you know the {{Firm}} application is open and I've submitted for {{Group}}. Given our conversation, I wanted to ask directly: would you be comfortable passing my name along to your recruiting team or the staffer for the group?\n\nCompletely understand if that's not something you're able to do. Either way I'm grateful for the time you already gave me. I've attached my resume in case it's useful.\n\nBest,\n{{MyName}}\n{{MySchool}} {{MyYear}}  |  {{MyMajor}}","customLine":"I wanted to let you know the {{Firm}} application is open and I've submitted for {{Group}}. Given our conversation, I wanted to ask directly: would you be comfortable passing my name along to your recruiting team or the staffer for the group?"},{"id":"t7","name":"Semester check-in","subject":"Checking in \u2014 {{MySchool}}","body":"Hi {{FirstName}},\n\nHope the semester has treated you well. I wanted to check in and share a quick update.\n\nI've kept building toward {{MyGroups}} this semester and wanted to keep you in the loop as recruiting gets closer.\n\nWould be glad to catch up briefly if you have time \u2014 and if there's anything happening at {{Firm}} I should know about, I'd welcome the steer.\n\nBest,\n{{MyName}}\n{{MySchool}} {{MyYear}}  |  {{MyMajor}}","customLine":"I've kept building toward {{MyGroups}} this semester and wanted to keep you in the loop as recruiting gets closer."}],"firms":[{"id":"f1","name":"Evercore","tier":"Elite Boutique","interest":5,"difficulty":"","target":"Yes","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f2","name":"Centerview","tier":"Elite Boutique","interest":5,"difficulty":"","target":"Yes","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f3","name":"Goldman Sachs","tier":"Bulge Bracket","interest":5,"difficulty":"","target":"Yes","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f4","name":"JP Morgan","tier":"Bulge Bracket","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f5","name":"Morgan Stanley","tier":"Bulge Bracket","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f6","name":"Moelis","tier":"Elite Boutique","interest":4,"difficulty":"","target":"Yes","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f7","name":"Lazard","tier":"Elite Boutique","interest":4,"difficulty":"","target":"Yes","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f8","name":"Bank of America","tier":"Bulge Bracket","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f9","name":"Liontree","tier":"Elite Boutique","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f10","name":"PJT Partners","tier":"Elite Boutique","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f11","name":"Deutsche Bank","tier":"Bulge Bracket","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f12","name":"RBC","tier":"Bulge Bracket","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f13","name":"Wells Fargo Securities","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f14","name":"Oppenheimer","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f15","name":"Financial Technology Partners","tier":"Elite Boutique","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f16","name":"Macquarie","tier":"Elite Boutique","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f17","name":"Greenhill (Mizuho)","tier":"Elite Boutique","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f18","name":"M. Klein & Co.","tier":"Elite Boutique","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f19","name":"Harris Williams","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f20","name":"Perella Weinberg","tier":"Elite Boutique","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f21","name":"Qatalyst","tier":"Elite Boutique","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f22","name":"Barclays","tier":"Bulge Bracket","interest":3,"difficulty":"","target":"Yes","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f23","name":"UBS","tier":"Bulge Bracket","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f24","name":"Baird","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f25","name":"Piper Sandler","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f26","name":"Citi","tier":"Bulge Bracket","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f27","name":"Raymond James","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f28","name":"Guggenheim","tier":"Elite Boutique","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f29","name":"Houlihan Lokey","tier":"Middle Market","interest":4,"difficulty":"","target":"Yes","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f30","name":"Rothschild","tier":"Elite Boutique","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f31","name":"William Blair","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f32","name":"Aeris Partners","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f33","name":"Agentis Capital","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f34","name":"BDO Global","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f35","name":"BNY Mellon","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f36","name":"Brown Gibbons Lang & Company","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f37","name":"Campbell Lutyens","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f38","name":"Carlsquare","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f39","name":"CIBC","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f40","name":"CICC","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f41","name":"Credit Agricole","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f42","name":"DC Advisory","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f43","name":"Ducera Partners","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f44","name":"Eastdil Secured","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f45","name":"Fenchurch Advisory","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f46","name":"Gleacher Shacklock","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f47","name":"Leerink Partners","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f48","name":"Lloyds Banking Group","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f49","name":"Loop Capital","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f50","name":"MTS Partners","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f51","name":"MUFG","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f52","name":"Natwest Markets","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f53","name":"Nomura","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f54","name":"Panmure Gordon","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f55","name":"Peel Hunt","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f56","name":"Rede Partners","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f57","name":"Santander","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f58","name":"Scotiabank","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f59","name":"Standard Chartered","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f60","name":"Stifel","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f61","name":"Stout","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f62","name":"TD Cowen","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f63","name":"Torch Partners","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f64","name":"Union Square Advisors","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f65","name":"BlackArch","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f66","name":"KeyBanc","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f67","name":"HSBC","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f68","name":"Societe Generale","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f69","name":"BnP Paribas","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f70","name":"Lincoln International","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f71","name":"DA Davidson","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f72","name":"Cowen","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f73","name":"Deloitte (TAS)","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f74","name":"PwC (TAS)","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f75","name":"KBW","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f76","name":"BMO Capital Markets","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f77","name":"BB&T","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f78","name":"TD Securities","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f79","name":"LEK Consulting","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f80","name":"Brown Brothers Harriman","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f81","name":"Wedbush Securities","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f82","name":"Stephens","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f83","name":"Westlake Securities","tier":"Middle Market","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f84","name":"Jefferies","tier":"Middle Market","interest":3,"difficulty":"","target":"Yes","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f85","name":"Rosenblatt Securities","tier":"","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""},{"id":"f86","name":"Blackstone","tier":"","interest":0,"difficulty":"","target":"No","emailPattern":"","hq":"","groups":"","headcount":"","appStatus":"Not open","opens":"","deadline":"","superday":"","referral":false,"targetGroup":"","whyFirm":"","deals":"","sectors":"","alumni":""}],"contacts":[{"id":"c1","first":"Alex","last":"Rivera","firmId":"f1","title":"Analyst 2","group":"M&A","office":"New York","connection":"Alumni","email":"","emailConf":"unknown","year":"","school":"","linkedin":"","stage":"Advocate","priority":1,"lastContact":"2026-01-20","nextAction":"","nextDate":"","touches":4,"replied":true,"callDate":"","referral":true,"tags":["sample"],"notes":[{"d":"2026-01-15","t":"Sample contact \u2014 delete these once you add your own."}]},{"id":"c2","first":"Priya","last":"Nair","firmId":"f2","title":"Associate","group":"Generalist","office":"New York","connection":"Alumni","email":"","emailConf":"unknown","year":"","school":"","linkedin":"","stage":"Replied","priority":1,"lastContact":"2026-01-22","nextAction":"Propose call times","nextDate":"","touches":2,"replied":true,"callDate":"","referral":false,"tags":["sample"],"notes":[{"d":"2026-01-15","t":"Sample contact. Replied stages sort to the top."}]},{"id":"c3","first":"Marcus","last":"Cole","firmId":"f6","title":"Analyst 1","group":"Restructuring","office":"New York","connection":"Referral \u2014 Rivera","email":"","emailConf":"unknown","year":"","school":"","linkedin":"","stage":"Call Done","priority":1,"lastContact":"2026-01-18","nextAction":"Send thank-you","nextDate":"","touches":3,"replied":true,"callDate":"","referral":false,"tags":["sample"],"notes":[{"d":"2026-01-15","t":"Sample contact."}]},{"id":"c4","first":"Dana","last":"Whitfield","firmId":"f7","title":"VP","group":"Power & Utilities","office":"New York","connection":"Cold","email":"","emailConf":"unknown","year":"","school":"","linkedin":"","stage":"Follow-Up 1","priority":2,"lastContact":"2026-01-02","nextAction":"Second bump","nextDate":"","touches":2,"replied":false,"callDate":"","referral":false,"tags":["sample"],"notes":[{"d":"2026-01-15","t":"Sample contact \u2014 shows the stale marker."}]},{"id":"c5","first":"Ines","last":"Duarte","firmId":"f29","title":"Analyst 1","group":"Industrials","office":"New York","connection":"Club","email":"","emailConf":"unknown","year":"","school":"","linkedin":"","stage":"Emailed","priority":2,"lastContact":"2026-01-26","nextAction":"Bump in 7 days","nextDate":"","touches":1,"replied":false,"callDate":"","referral":false,"tags":["sample"],"notes":[{"d":"2026-01-15","t":"Sample contact."}]},{"id":"c6","first":"Tom","last":"Becker","firmId":"f84","title":"MD","group":"LevFin","office":"New York","connection":"Info session","email":"","emailConf":"unknown","year":"","school":"","linkedin":"","stage":"Not Contacted","priority":3,"lastContact":"","nextAction":"Draft cold intro","nextDate":"","touches":0,"replied":false,"callDate":"","referral":false,"tags":["sample"],"notes":[{"d":"2026-01-15","t":"Sample contact."}]}]}</script><!--STATE_END-->
 <script>
 (function(){
 "use strict";
@@ -416,6 +463,16 @@ function markWritten(){
   for (var k in sh) written[k] = JSON.stringify(sh[k]);
 }
 
+/* Saved states predate the "N/A" stage — add it once, then respect the list
+   as the viewer leaves it (removing N/A in settings makes it stay removed). */
+function migrate(){
+  if (!state.settings) state.settings = {};
+  if (state.settings.naStageSeeded) return false;
+  state.settings.naStageSeeded = true;
+  if (state.stages && state.stages.indexOf("N/A") < 0) state.stages.push("N/A");
+  return true;
+}
+
 function boot(){
   var p = (typeof window.claude !== "undefined" && window.claude && window.claude.use)
     ? window.claude.use("db") : Promise.resolve(null);
@@ -424,6 +481,7 @@ function boot(){
     if (!db){
       lsLoad(); ready = true;
       setFlag("saved locally", "");
+      if (migrate()) save();
       return;
     }
     return Promise.all([
@@ -438,6 +496,7 @@ function boot(){
         state = assemble(sn[0].data(), sn[1].data(), sn[2].data());
         markWritten();
         ready = true; setFlag("saved");
+        if (migrate()) save();
       } else {
         /* first run on this artifact — plant the imported spreadsheet */
         ready = true;
@@ -446,6 +505,7 @@ function boot(){
     });
   }).catch(function(){
     db = null; lsLoad(); ready = true; setFlag("saved locally", "");
+    if (migrate()) save();
   });
 }
 
@@ -494,7 +554,7 @@ function toast(msg){
 var STAGE_CLASS = {
   "Not Contacted":"p-grey", "Emailed":"p-amber", "Follow-Up 1":"p-slate", "Follow-Up 2":"p-slate",
   "Replied":"p-brass", "Call Scheduled":"p-brass", "Call Done":"p-green",
-  "Thank-You Sent":"p-green", "Advocate":"p-green", "Dead":"p-red"
+  "Thank-You Sent":"p-green", "Advocate":"p-green", "Dead":"p-red", "N/A":"p-grey"
 };
 function stageClass(s){ return STAGE_CLASS[s] || "p-grey"; }
 function staleDays(c){
@@ -509,15 +569,100 @@ function isStale(c){
   return d !== null && d >= (state.settings.bumpDays || 7);
 }
 function needsAction(c){
-  if (c.stage === "Dead" || c.stage === "Advocate") return false;
+  if (c.stage === "Dead" || c.stage === "Advocate" || c.stage === "N/A") return false;
   if (c.stage === "Not Contacted") return c.priority <= 2;
   if (c.stage === "Replied") return true;
   return isStale(c);
 }
 function firmContacts(fid){ return state.contacts.filter(function(c){ return c.firmId === fid; }); }
 
+/* ---------- contact log ---------- */
+var LOG_TYPES = [
+  "Call","Text","Email","Thank-you email","LinkedIn message","Voicemail",
+  "Coffee chat","Meeting","Event","Intro / referral","Note","Other"
+];
+var LOG_DIRS = ["", "Outbound", "Inbound"];
+var LOG_CLASS = {
+  "Call":"p-brass", "Text":"p-slate", "Email":"p-amber", "Thank-you email":"p-green",
+  "LinkedIn message":"p-slate", "Voicemail":"p-grey", "Coffee chat":"p-green",
+  "Meeting":"p-green", "Event":"p-brass", "Intro / referral":"p-green",
+  "Note":"p-grey", "Other":"p-grey"
+};
+function logClass(t){ return LOG_CLASS[t] || "p-grey"; }
+/* a note is something you wrote down, not something that passed between you —
+   logging one never moves the stage or the touch count */
+var PASSIVE_TYPE = {"Note":1};
+var LIVE_TYPE = {"Call":1, "Coffee chat":1, "Meeting":1};
+
+function contactLog(c){
+  if (!c.log) c.log = [];
+  return c.log;
+}
+/* newest first; ts breaks ties inside a single day */
+function sortLog(c){
+  contactLog(c).sort(function(a,b){
+    if ((a.date||"") !== (b.date||"")) return (b.date||"").localeCompare(a.date||"");
+    return (b.ts||0) - (a.ts||0);
+  });
+}
+function logEntry(o){
+  return {
+    id: uid("l"), ts: Date.now(),
+    date: o.date || today(),
+    type: o.type || "Note",
+    dir: o.dir || "",
+    summary: (o.summary || "").trim(),
+    detail: (o.detail || "").trim()
+  };
+}
+/* the one door every interaction goes through, so the timeline, the touch
+   count and the last-touch date can never drift apart */
+function addLog(c, o, applyEffects){
+  var e = logEntry(o);
+  contactLog(c).push(e);
+  sortLog(c);
+  if (applyEffects !== false) applyLogEffects(c, e);
+  return e;
+}
+function applyLogEffects(c, e){
+  if (PASSIVE_TYPE[e.type]) return;
+  if (!c.lastContact || e.date > c.lastContact) c.lastContact = e.date;
+  if (e.dir === "Outbound") c.touches = (c.touches||0) + 1;
+  if (e.dir === "Inbound"){
+    c.replied = true;
+    if (["Not Contacted","Emailed","Follow-Up 1","Follow-Up 2"].indexOf(c.stage) >= 0) setStage(c, "Replied");
+  }
+  if (LIVE_TYPE[e.type]){
+    c.callDate = c.callDate || e.date;
+    if (["Not Contacted","Emailed","Follow-Up 1","Follow-Up 2","Replied","Call Scheduled"].indexOf(c.stage) >= 0) setStage(c, "Call Done");
+  }
+  if (e.type === "Thank-you email" && e.dir !== "Inbound" && c.stage === "Call Done") setStage(c, "Thank-You Sent");
+  if (e.type === "Intro / referral") c.referral = true;
+}
+/* notes used to be a list of their own; they are log entries now.
+   The first paint happens before boot() has decided where the data lives,
+   so a migration done then is held until the store is ready to take it. */
+var pendingMigration = false;
+function migrateLog(){
+  var changed = false;
+  (state.contacts||[]).forEach(function(c){
+    if (!c.log){ c.log = []; changed = true; }
+    if (c.notes && c.notes.length){
+      var n = c.notes.length;
+      c.notes.forEach(function(note, i){
+        c.log.push({ id: uid("l"), ts: n - i, date: note.d || today(),
+          type: "Note", dir: "", summary: note.t || "", detail: "" });
+      });
+      c.notes = [];
+      sortLog(c);
+      changed = true;
+    }
+  });
+  return changed;
+}
+
 /* ---------- routing ---------- */
-var TABS = [["contacts","Contacts"],["firms","Firms"],["compose","Compose"],["settings","Settings"]];
+var TABS = [["contacts","Contacts"],["firms","Firms"],["compose","Compose"],["templates","Templates"],["settings","Settings"]];
 var route = ssGet("cov.tab") || "contacts";
 var ui = {
   q:"", stage:"", prio:"", firm:"", needs:false, sort:"auto", desc:false,
@@ -543,15 +688,17 @@ function render(){
   if (route === "contacts") viewContacts(v);
   else if (route === "firms") viewFirms(v);
   else if (route === "compose") viewCompose(v);
+  else if (route === "templates") viewTemplates(v);
   else viewSettings(v);
 }
 
 /* ================= CONTACTS ================= */
 function viewContacts(v){
   var cs = state.contacts;
-  var sent = 0, replied = 0, calls = 0, refs = 0, act = 0;
+  var sent = 0, replied = 0, calls = 0, refs = 0, act = 0, logged = 0;
   cs.forEach(function(c){
     sent += c.touches || 0;
+    logged += (c.log||[]).length;
     if (c.replied) replied++;
     if (c.callDate || c.stage === "Call Done" || c.stage === "Thank-You Sent" || c.stage === "Advocate") calls++;
     if (c.referral) refs++;
@@ -561,7 +708,8 @@ function viewContacts(v){
   var rate = emailedPeople ? Math.round(replied / emailedPeople * 100) + "%" : "—";
 
   var kp = h("div", {class:"kpis"});
-  [[cs.length,"Contacts"],[sent,"Emails sent"],[rate,"Reply rate"],[calls,"Calls done"],[refs,"Referrals"]].forEach(function(k){
+  [[cs.length,"Contacts"],[sent,"Emails sent"],[rate,"Reply rate"],[calls,"Calls done"],
+   [refs,"Referrals"],[logged,"Logged"]].forEach(function(k){
     kp.appendChild(h("div",{class:"kpi"},[h("div",{class:"n",text:String(k[0])}),h("div",{class:"k",text:k[1]})]));
   });
   kp.appendChild(h("div",{class:"kpi" + (act ? " alert" : "")},[
@@ -630,7 +778,9 @@ function viewContacts(v){
       if (ui.needs && !needsAction(c)) return false;
       if (!ui.stage && !ui.q && c.stage === "Dead") return false;
       if (s){
-        var hay = (fullName(c) + " " + firmName(c.firmId) + " " + c.group + " " + c.connection + " " + c.title + " " + (c.tags||[]).join(" ")).toLowerCase();
+        var hay = (fullName(c) + " " + firmName(c.firmId) + " " + c.group + " " + c.connection + " " + c.title + " " +
+          (c.tags||[]).join(" ") + " " +
+          (c.log||[]).map(function(l){ return l.type + " " + l.summary + " " + l.detail; }).join(" ")).toLowerCase();
         if (hay.indexOf(s) < 0) return false;
       }
       return true;
@@ -674,13 +824,14 @@ function viewContacts(v){
       if (!c.lastContact) lastCell = h("span",{class:"fresh",text:"—"});
       else if (isStale(c)) lastCell = h("span",{class:"stale",text:d + "d · stale"});
       else lastCell = h("span",{class:"fresh",text:d === 0 ? "today" : d + "d ago"});
+      var lastLog = (c.log||[])[0];
       var tr = h("tr",{onclick:function(){ openContact(c.id); }},[
         h("td",{},[h("span",{class:"dot d"+c.priority,title:"P"+c.priority})]),
         h("td",{class:"nm"},[document.createTextNode(fullName(c)), h("span",{class:"sub",text:(c.title||"—")})]),
         h("td",{},[document.createTextNode(firmName(c.firmId) || "—"), h("span",{class:"sub",text:c.group||""})]),
         h("td",{},[document.createTextNode(c.connection || "—")]),
         h("td",{},[h("span",{class:"pill "+stageClass(c.stage),text:c.stage})]),
-        h("td",{},[lastCell]),
+        h("td",{},[lastCell, lastLog ? h("span",{class:"sub",text:lastLog.type}) : null]),
         h("td",{},[document.createTextNode(c.nextAction || "—")])
       ]);
       tbody.appendChild(tr);
@@ -690,7 +841,7 @@ function viewContacts(v){
 }
 
 /* ================= CONTACT DRAWER ================= */
-function closeLayer(){ clear($("layer")); }
+function closeLayer(){ editingLog = ""; clear($("layer")); }
 function drawer(title, sub, bodyBuild, footBuild){
   var layer = $("layer"); clear(layer);
   var scrim = h("div",{class:"scrim",onclick:closeLayer});
@@ -771,11 +922,16 @@ function openContact(id){
     /* quick actions */
     var qa = h("div",{class:"filters"});
     qa.appendChild(h("button",{class:"btn sm",text:"Log email sent today",onclick:function(){
-      logEmail(c); save(); openContact(id); render(); toast("Logged — " + c.stage);
+      logEmail(c);
+      /* logEmail already stamped the date and the touch — the entry is the record only */
+      addLog(c, {type:"Email", dir:"Outbound", summary:"Email sent"}, false);
+      save(); openContact(id); render(); toast("Logged — " + c.stage);
     }}));
     qa.appendChild(h("button",{class:"btn sm",text:"Mark replied",onclick:function(){
       c.replied = true; c.stage = "Replied"; c.lastContact = today();
-      c.nextAction = "Propose call times"; save(); openContact(id); render();
+      c.nextAction = "Propose call times";
+      addLog(c, {type:"Email", dir:"Inbound", summary:"They replied"}, false);
+      save(); openContact(id); render();
     }}));
     qa.appendChild(h("button",{class:"btn sm",text:"Compose →",onclick:function(){
       ui.composeTo = c.id; ui.draft = null; ssSet("cov.to", c.id);
@@ -836,31 +992,8 @@ function openContact(id){
     fs3.appendChild(checks);
     body.appendChild(fs3);
 
-    /* notes */
-    var fs4 = h("div",{class:"fieldset"},[h("div",{class:"lg",text:"Notes log"})]);
-    var ta = h("textarea",{placeholder:"What did they say? Deal they're on, group colour, what to ask next time…"});
-    ta.style.minHeight = "62px";
-    var addNote = h("button",{class:"btn sm",text:"Add note",onclick:function(){
-      var t = ta.value.trim(); if(!t) return;
-      c.notes = c.notes || [];
-      c.notes.unshift({d: today(), t: t});
-      ta.value = ""; save(); openContact(id);
-    }});
-    fs4.appendChild(h("div",{class:"f wide"},[ta]));
-    fs4.appendChild(h("div",{class:"filters"},[addNote]));
-    var nl = h("div",{class:"notes"});
-    (c.notes||[]).forEach(function(n, i){
-      nl.appendChild(h("div",{class:"note"},[
-        h("span",{class:"d",text:n.d}),
-        h("span",{class:"t",text:n.t}),
-        h("button",{class:"del",title:"Delete note",html:"&times;",onclick:function(ev){
-          ev.stopPropagation(); c.notes.splice(i,1); save(); openContact(id);
-        }})
-      ]));
-    });
-    if (!(c.notes||[]).length) nl.appendChild(h("div",{class:"hint",text:"No notes yet."}));
-    fs4.appendChild(nl);
-    body.appendChild(fs4);
+    /* the log */
+    body.appendChild(logSection(c, function(){ openContact(id); render(); }));
   }, function(foot){
     foot.appendChild(h("button",{class:"btn primary",text:"Done",onclick:function(){ flush(); closeLayer(); }}));
     foot.appendChild(h("span",{class:"spacer"}));
@@ -870,6 +1003,169 @@ function openContact(id){
       save(); closeLayer(); render();
     }}));
   });
+}
+
+/* ================= CONTACT LOG UI ================= */
+var editingLog = "";
+
+function mkSelect(options, val){
+  var sel = h("select");
+  options.forEach(function(o){
+    sel.appendChild(h("option",{value:o, text:o||"—", selected:String(val)===String(o)?"selected":null}));
+  });
+  return sel;
+}
+function fldWrap(label, input, wide){
+  return h("div",{class:"f" + (wide?" wide":"")},[h("label",{text:label}), input]);
+}
+
+/* the whole per-person history: a compose bar on top, the timeline under it */
+function logSection(c, refresh){
+  var fs = h("div",{class:"fieldset"},[
+    h("div",{class:"lg",text:"Contact log"}),
+    h("div",{class:"hint",text:"Every call, text, email or meeting with this person — newest first."})
+  ]);
+
+  var typeSel = mkSelect(LOG_TYPES, "Call");
+  var dirSel = mkSelect(LOG_DIRS, "Outbound");
+  var dateIn = h("input",{type:"date",value:today()});
+  var sumIn = h("input",{type:"text",placeholder:"One line — what it was about"});
+  var detIn = h("textarea",{placeholder:"Anything worth remembering: what they said, what to ask next time…"});
+  detIn.style.minHeight = "58px";
+
+  var quick = h("div",{class:"logquick"});
+  function syncQuick(){
+    Array.prototype.forEach.call(quick.childNodes, function(b){
+      b.className = b.getAttribute("data-t") === typeSel.value ? "on" : "";
+    });
+  }
+  ["Call","Text","Email","Thank-you email","LinkedIn message","Meeting","Note"].forEach(function(t){
+    quick.appendChild(h("button",{"data-t":t, text:t, onclick:function(){
+      typeSel.value = t;
+      dirSel.value = (t === "Note") ? "" : (dirSel.value || "Outbound");
+      syncQuick();
+      sumIn.focus();
+    }}));
+  });
+  fs.appendChild(quick);
+
+  typeSel.addEventListener("change", function(){
+    if (typeSel.value === "Note") dirSel.value = "";
+    else if (!dirSel.value) dirSel.value = "Outbound";
+    syncQuick();
+  });
+  syncQuick();
+
+  var form = h("div",{class:"logform"});
+  var g = h("div",{class:"fgrid"});
+  g.appendChild(fldWrap("Type", typeSel));
+  g.appendChild(fldWrap("Direction", dirSel));
+  g.appendChild(fldWrap("Date", dateIn));
+  form.appendChild(g);
+  form.appendChild(fldWrap("Summary", sumIn, true));
+  form.appendChild(fldWrap("Detail", detIn, true));
+
+  var applyCb = h("input",{type:"checkbox"});
+  applyCb.checked = true;
+  var acts = h("div",{class:"filters"});
+  acts.appendChild(h("button",{class:"btn primary sm",text:"Log it",onclick:commit}));
+  acts.appendChild(h("label",{class:"checkline",title:"Stamps the last-touch date, counts the touch, and moves the stage where it obviously should move"},
+    [applyCb, document.createTextNode("Update stage and last touch")]));
+  form.appendChild(acts);
+  fs.appendChild(form);
+
+  sumIn.addEventListener("keydown", function(e){
+    if (e.key === "Enter"){ e.preventDefault(); commit(); }
+  });
+
+  function commit(){
+    var sum = sumIn.value.trim(), det = detIn.value.trim();
+    if (!sum && !det){ sumIn.focus(); toast("Say what happened first"); return; }
+    addLog(c, {
+      date: dateIn.value || today(), type: typeSel.value, dir: dirSel.value,
+      summary: sum || typeSel.value, detail: det
+    }, applyCb.checked);
+    save();
+    toast("Logged — " + typeSel.value);
+    refresh();
+  }
+
+  var feed = h("div",{class:"logfeed"});
+  var entries = contactLog(c);
+  if (!entries.length){
+    feed.appendChild(h("div",{class:"logempty",
+      text:"Nothing logged yet. Anything you record above lands here as a dated timeline."}));
+  } else {
+    entries.forEach(function(e){ feed.appendChild(logRow(c, e, refresh)); });
+  }
+  fs.appendChild(feed);
+  return fs;
+}
+
+function logRow(c, e, refresh){
+  if (editingLog === e.id) return logEditRow(c, e, refresh);
+  var core = h("div",{class:"core"},[
+    h("div",{class:"top"},[
+      h("span",{class:"pill "+logClass(e.type), text:e.type}),
+      e.dir ? h("span",{class:"dirtag", text: e.dir === "Inbound" ? "← inbound" : "→ outbound"}) : null
+    ])
+  ]);
+  if (e.summary) core.appendChild(h("div",{class:"sm2", text:e.summary}));
+  if (e.detail){
+    var long = e.detail.length > 280;
+    var det = h("div",{class:"det" + (long?" clip":""), text:e.detail});
+    core.appendChild(det);
+    if (long){
+      var more = h("button",{class:"more", text:"show more"});
+      more.addEventListener("click", function(){
+        var open = det.className.indexOf("clip") < 0;
+        det.className = open ? "det clip" : "det";
+        more.textContent = open ? "show more" : "show less";
+      });
+      core.appendChild(more);
+    }
+  }
+  return h("div",{class:"logitem"},[
+    h("div",{class:"when", text:e.date}),
+    core,
+    h("div",{class:"acts"},[
+      h("button",{title:"Edit entry", html:"&#9998;", onclick:function(){ editingLog = e.id; refresh(); }}),
+      h("button",{class:"del", title:"Delete entry", html:"&times;", onclick:function(){
+        c.log = contactLog(c).filter(function(x){ return x.id !== e.id; });
+        save(); refresh();
+      }})
+    ])
+  ]);
+}
+
+/* editing an entry corrects the record only — it deliberately does not
+   re-run the stage effects a fresh entry triggers */
+function logEditRow(c, e, refresh){
+  var t = mkSelect(LOG_TYPES, e.type);
+  var d = mkSelect(LOG_DIRS, e.dir);
+  var dt = h("input",{type:"date", value:esc(e.date)});
+  var sum = h("input",{type:"text", value:esc(e.summary)});
+  var det = h("textarea");
+  det.value = esc(e.detail);
+  det.style.minHeight = "52px";
+
+  var form = h("div",{class:"logform"});
+  var g = h("div",{class:"fgrid"});
+  g.appendChild(fldWrap("Type", t));
+  g.appendChild(fldWrap("Direction", d));
+  g.appendChild(fldWrap("Date", dt));
+  form.appendChild(g);
+  form.appendChild(fldWrap("Summary", sum, true));
+  form.appendChild(fldWrap("Detail", det, true));
+  form.appendChild(h("div",{class:"filters"},[
+    h("button",{class:"btn primary sm", text:"Save entry", onclick:function(){
+      e.type = t.value; e.dir = d.value; e.date = dt.value || e.date;
+      e.summary = sum.value.trim(); e.detail = det.value.trim();
+      sortLog(c); editingLog = ""; save(); refresh();
+    }}),
+    h("button",{class:"btn sm", text:"Cancel", onclick:function(){ editingLog = ""; refresh(); }})
+  ]));
+  return form;
 }
 
 function setStage(c, s){
@@ -882,7 +1178,7 @@ function setStage(c, s){
   if (s === "Call Done"){ c.callDate = c.callDate || today(); c.nextAction = "Send thank-you"; c.nextDate = today(); }
   if (s === "Thank-You Sent"){ c.lastContact = today(); c.nextAction = "Keep warm — check in next month"; }
   if (s === "Advocate"){ c.referral = true; c.nextAction = ""; }
-  if (s === "Dead"){ c.nextAction = ""; }
+  if (s === "Dead" || s === "N/A"){ c.nextAction = ""; }
   if (s === "Not Contacted"){ c.nextAction = "Draft cold intro"; }
 }
 function logEmail(c){
@@ -978,7 +1274,8 @@ function addContactForm(){
       connection: vals.conn, email: vals.email, emailConf: vals.email ? "pattern" : "unknown",
       year:"", school:"", linkedin:"", stage:"Not Contacted", priority: parseInt(vals.prio,10)||3,
       lastContact:"", nextAction:"Draft cold intro", nextDate:"", touches:0, replied:false,
-      callDate:"", referral:false, tags:[], notes: vals.note.trim() ? [{d:today(), t:vals.note.trim()}] : []
+      callDate:"", referral:false, tags:[], notes:[],
+      log: vals.note.trim() ? [logEntry({type:"Note", summary: vals.note.trim()})] : []
     };
     state.contacts.push(c);
     save();
@@ -1271,8 +1568,7 @@ function viewCompose(v){
   }}));
   foot.appendChild(h("button",{class:"btn",text:"Log as sent",onclick:function(){
     logEmail(c);
-    c.notes = c.notes || [];
-    c.notes.unshift({d: today(), t: "Sent: " + subjIn.value});
+    addLog(c, {type:"Email", dir:"Outbound", summary:"Sent: " + subjIn.value, detail: ta.value}, false);
     ui.draft = null; save(); render(); toast("Logged — " + c.stage);
   }}));
   foot.appendChild(h("button",{class:"btn ghost sm",text:"Reset to template",onclick:function(){ ui.draft = null; render(); }}));
@@ -1287,7 +1583,39 @@ function viewCompose(v){
   var tip = h("div",{class:"sectitle"},[h("span",{class:"e",text:"Reminder"})]);
   v.appendChild(tip);
   v.appendChild(h("div",{class:"hint",style:"color:var(--muted);font-size:.88rem;max-width:70ch",
-    text:"Rewrite the marked custom line before sending — it is the only part of the email that proves you did not mass-blast it. “Log as sent” advances the stage, stamps today, bumps the touch count and writes the subject into the notes log."}));
+    text:"Rewrite the marked custom line before sending — it is the only part of the email that proves you did not mass-blast it. “Log as sent” advances the stage, stamps today, bumps the touch count and files the email in this person’s contact log."}));
+}
+
+/* ================= TEMPLATES ================= */
+function viewTemplates(v){
+  v.appendChild(h("div",{class:"sectitle"},[h("h2",{text:"Email templates"}),h("span",{class:"e",text:"{{merge fields}} pull from the contact, their firm, and your profile"})]));
+  var c = h("div",{class:"setcard"});
+  c.appendChild(h("div",{class:"hint",style:"color:var(--muted)",
+    text:"Available: FirstName LastName Firm Group Title Office Connection School GradYear Deal Sectors CallDate MyName MySchool MyYear MyMajor MyGroups"}));
+  state.templates.forEach(function(t, i){
+    var box = h("div",{class:"tmpl-edit"});
+    box.appendChild(field("Template name", t.name, function(x){ t.name=x; save(); render(); }, {wide:true}));
+    box.appendChild(field("Subject", t.subject, function(x){ t.subject=x; save(); }, {wide:true}));
+    box.appendChild(field("Body", t.body, function(x){ t.body=x; save(); }, {type:"textarea", wide:true}));
+    box.appendChild(field("Custom line (must be rewritten before sending)", t.customLine, function(x){ t.customLine=x; save(); }, {wide:true}));
+    box.appendChild(h("div",{class:"filters"},[
+      h("button",{class:"btn sm",text:"Use in Compose",onclick:function(){
+        ui.composeTpl = t.id; ui.draft = null; go("compose");
+      }}),
+      h("span",{class:"spacer"}),
+      h("button",{class:"btn sm danger",text:"Delete template",onclick:function(){
+        if (state.templates.length < 2){ toast("Keep at least one"); return; }
+        if (!confirm("Delete “" + t.name + "”?")) return;
+        state.templates.splice(i,1); save(); render();
+      }})
+    ]));
+    c.appendChild(box);
+  });
+  c.appendChild(h("button",{class:"btn",text:"+ New template",onclick:function(){
+    state.templates.push({id:uid("t"), name:"Untitled", subject:"", body:"Hi {{FirstName}},\n\n", customLine:""});
+    save(); render();
+  }}));
+  v.appendChild(c);
 }
 
 /* ================= SETTINGS ================= */
@@ -1307,31 +1635,6 @@ function viewSettings(v){
   c1.appendChild(g);
   v.appendChild(c1);
 
-  v.appendChild(h("div",{class:"sectitle"},[h("h2",{text:"Templates"}),h("span",{class:"e",text:"{{merge fields}} pull from the contact, their firm, and your profile"})]));
-  var c2 = h("div",{class:"setcard"});
-  c2.appendChild(h("div",{class:"hint",style:"color:var(--muted)",
-    text:"Available: FirstName LastName Firm Group Title Office Connection School GradYear Deal Sectors CallDate MyName MySchool MyYear MyMajor MyGroups"}));
-  state.templates.forEach(function(t, i){
-    var box = h("div",{class:"tmpl-edit"});
-    box.appendChild(field("Template name", t.name, function(x){ t.name=x; save(); render(); }, {wide:true}));
-    box.appendChild(field("Subject", t.subject, function(x){ t.subject=x; save(); }, {wide:true}));
-    box.appendChild(field("Body", t.body, function(x){ t.body=x; save(); }, {type:"textarea", wide:true}));
-    box.appendChild(field("Custom line (must be rewritten before sending)", t.customLine, function(x){ t.customLine=x; save(); }, {wide:true}));
-    box.appendChild(h("div",{class:"filters"},[
-      h("button",{class:"btn sm danger",text:"Delete template",onclick:function(){
-        if (state.templates.length < 2){ toast("Keep at least one"); return; }
-        if (!confirm("Delete “" + t.name + "”?")) return;
-        state.templates.splice(i,1); save(); render();
-      }})
-    ]));
-    c2.appendChild(box);
-  });
-  c2.appendChild(h("button",{class:"btn",text:"+ New template",onclick:function(){
-    state.templates.push({id:uid("t"), name:"Untitled", subject:"", body:"Hi {{FirstName}},\n\n", customLine:""});
-    save(); render();
-  }}));
-  v.appendChild(c2);
-
   v.appendChild(h("div",{class:"sectitle"},[h("h2",{text:"Stages"}),h("span",{class:"e",text:"rename or reorder — one per line"})]));
   var c3 = h("div",{class:"setcard"});
   c3.appendChild(field("Pipeline stages", state.stages.join("\n"), function(x){
@@ -1347,15 +1650,33 @@ function viewSettings(v){
       navigator.clipboard.writeText(JSON.stringify(state,null,1)).then(function(){ toast("Copied — paste somewhere safe"); });
     }}),
     h("button",{class:"btn",text:"Copy contacts as CSV",onclick:function(){
-      var head = ["Name","Firm","Title","Group","Office","Connection","Email","Stage","Priority","Last contact","Next action","Touches","Replied","Referral","Notes"];
+      var head = ["Name","Firm","Title","Group","Office","Connection","Email","Stage","Priority","Last contact","Next action","Touches","Replied","Referral","Log"];
       var lines = [head.join(",")];
       state.contacts.forEach(function(c){
         var row = [fullName(c), firmName(c.firmId), c.title, c.group, c.office, c.connection, c.email,
           c.stage, "P"+c.priority, c.lastContact, c.nextAction, c.touches, c.replied?"Yes":"No",
-          c.referral?"Yes":"No", (c.notes||[]).map(function(n){return n.d+": "+n.t;}).join(" | ")];
+          c.referral?"Yes":"No", (c.log||[]).map(function(l){
+            return l.date + " " + l.type + ": " + l.summary;
+          }).join(" | ")];
         lines.push(row.map(function(x){ return '"' + String(x==null?"":x).replace(/"/g,'""') + '"'; }).join(","));
       });
       navigator.clipboard.writeText(lines.join("\n")).then(function(){ toast("CSV copied"); });
+    }}),
+    h("button",{class:"btn",text:"Copy contact log as CSV",onclick:function(){
+      var head = ["Date","Name","Firm","Type","Direction","Summary","Detail"];
+      var rows = [];
+      state.contacts.forEach(function(c){
+        (c.log||[]).forEach(function(l){
+          rows.push([l.date, fullName(c), firmName(c.firmId), l.type, l.dir, l.summary, l.detail]);
+        });
+      });
+      rows.sort(function(a,b){ return (b[0]||"").localeCompare(a[0]||""); });
+      if (!rows.length){ toast("Nothing logged yet"); return; }
+      var lines = [head.join(",")];
+      rows.forEach(function(r){
+        lines.push(r.map(function(x){ return '"' + String(x==null?"":x).replace(/"/g,'""') + '"'; }).join(","));
+      });
+      navigator.clipboard.writeText(lines.join("\n")).then(function(){ toast(rows.length + " log entries copied"); });
     }})
   ]));
   c4.appendChild(h("div",{class:"hint",style:"color:var(--muted)",
@@ -1397,7 +1718,11 @@ safeRender();
 boot().then(function(){ safeRender(); if (dirty) flush(); },
            function(){ ready = true; safeRender(); });
 function safeRender(){
-try { render(); } catch(err){
+try {
+  if (migrateLog()) pendingMigration = true;
+  if (pendingMigration && ready){ pendingMigration = false; save(); }
+  render();
+} catch(err){
   $("view").appendChild(h("div",{class:"empty",text:"Something broke while rendering: " + (err && err.message)}));
   if (window.console) console.error(err);
 }
