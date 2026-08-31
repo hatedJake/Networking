@@ -1,0 +1,64 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag to create, e.g. v1.0.0'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Determine version
+        id: vars
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
+            VERSION="$INPUT_VERSION"
+          else
+            VERSION="$GITHUB_REF_NAME"
+          fi
+          # Restricted charset: the version becomes part of an asset filename.
+          if ! printf '%s' "$VERSION" | grep -qE '^v[0-9A-Za-z._-]+$'; then
+            echo "Version must look like v1.2.3 (got '$VERSION')" >&2
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Build release asset
+        env:
+          VERSION: ${{ steps.vars.outputs.version }}
+        run: |
+          mkdir -p dist
+          # Stamp the build so a downloaded copy identifies its own version.
+          sed "1i <!-- Coverage $VERSION -->" index.html > "dist/Coverage-$VERSION.html"
+          cp "dist/Coverage-$VERSION.html" dist/Coverage.html
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.vars.outputs.version }}
+        run: |
+          if gh release view "$VERSION" >/dev/null 2>&1; then
+            echo "Release $VERSION already exists." >&2
+            exit 1
+          fi
+          # Creates the tag at this commit if it does not already exist.
+          gh release create "$VERSION" \
+            dist/Coverage-*.html \
+            dist/Coverage.html \
+            --target "$GITHUB_SHA" \
+            --title "Coverage $VERSION" \
+            --generate-notes
