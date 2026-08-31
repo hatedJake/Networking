@@ -520,7 +520,7 @@ function firmContacts(fid){ return state.contacts.filter(function(c){ return c.f
 var TABS = [["contacts","Contacts"],["firms","Firms"],["compose","Compose"],["settings","Settings"]];
 var route = ssGet("cov.tab") || "contacts";
 var ui = {
-  q:"", stage:"", prio:"", needs:false, sort:"auto", desc:false,
+  q:"", stage:"", prio:"", firm:"", needs:false, sort:"auto", desc:false,
   fq:"", ftarget:"", ftier:"", fgap:false,
   composeTo: ssGet("cov.to"), composeTpl: "", draft:null
 };
@@ -588,6 +588,14 @@ function viewContacts(v){
   psel.addEventListener("change", function(){ ui.prio = psel.value; drawRows(); });
   f.appendChild(psel);
 
+  var fsel = h("select");
+  fsel.appendChild(h("option",{value:"",text:"All firms"}));
+  state.firms.slice().sort(function(a,b){ return a.name.localeCompare(b.name); }).forEach(function(fm){
+    fsel.appendChild(h("option",{value:fm.id,text:fm.name,selected:ui.firm===fm.id?"selected":null}));
+  });
+  fsel.addEventListener("change", function(){ ui.firm = fsel.value; drawRows(); });
+  f.appendChild(fsel);
+
   var nb = h("button",{class:"chip","aria-pressed":ui.needs?"true":"false",text:"Needs action"});
   nb.addEventListener("click", function(){ ui.needs = !ui.needs; nb.setAttribute("aria-pressed", ui.needs?"true":"false"); drawRows(); });
   f.appendChild(nb);
@@ -618,6 +626,7 @@ function viewContacts(v){
     return state.contacts.filter(function(c){
       if (ui.stage && c.stage !== ui.stage) return false;
       if (ui.prio && String(c.priority) !== ui.prio) return false;
+      if (ui.firm && c.firmId !== ui.firm) return false;
       if (ui.needs && !needsAction(c)) return false;
       if (!ui.stage && !ui.q && c.stage === "Dead") return false;
       if (s){
