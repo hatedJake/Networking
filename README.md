@@ -7,6 +7,15 @@ The whole app is one file — `index.html`. No build step, no server, no account
 It runs two ways: opened directly in a browser, or installed as a native desktop
 app through the Electron shell in `electron/`.
 
+## What's new in 1.1.0
+
+- **Templates tab** — email templates moved out of Settings into their own tab.
+- **Per-contact interaction log** — record calls, emails and notes against a
+  contact, with quick actions from the contact drawer.
+- **N/A pipeline stage** — for contacts that sit outside the funnel.
+- **UTF-8 declared explicitly** — punctuation and em dashes render correctly
+  instead of turning into mojibake.
+
 ## Run it as a desktop app
 
 ```bash
@@ -19,7 +28,7 @@ That opens Coverage in its own window with its own Dock icon.
 ### Build an installer
 
 ```bash
-npm run dist:mac     # -> release/Coverage-1.0.0-arm64.dmg
+npm run dist:mac     # -> release/Coverage-1.1.0-arm64.dmg
 ```
 
 Open the `.dmg` and drag Coverage to Applications. `npm run dist:win` and
