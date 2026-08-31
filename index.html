@@ -1,3 +1,4 @@
+<meta charset="utf-8">
 <title>Coverage</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -242,6 +243,40 @@ td .sub{display:block;font-size:.72rem;color:var(--faint);font-weight:400;
 .note .del{opacity:0;background:none;border:0;color:var(--faint);font-size:.9rem;padding:0 4px}
 .note:hover .del{opacity:1}
 .note .del:hover{color:var(--crimson)}
+
+/* ============ contact log ============ */
+.logquick{display:flex;flex-wrap:wrap;gap:5px}
+.logquick button{
+  border:1px solid var(--rule);background:var(--card);border-radius:3px;cursor:pointer;
+  padding:3px 8px;font-family:"IBM Plex Mono",monospace;font-size:.66rem;color:var(--muted);
+}
+.logquick button:hover{border-color:var(--brass);color:var(--brass)}
+.logquick button.on{background:var(--brass);border-color:var(--brass);color:var(--card)}
+.logform{display:flex;flex-direction:column;gap:10px;background:var(--sunk);
+  border:1px solid var(--rule);border-radius:4px;padding:12px}
+.logform .filters{margin-bottom:0}
+.logfeed{display:flex;flex-direction:column;gap:0}
+.logitem{padding:11px 0;border-bottom:1px solid var(--rule-soft);display:flex;gap:12px;align-items:flex-start}
+.logitem:last-child{border-bottom:0}
+.logitem .when{font-family:"IBM Plex Mono",monospace;font-size:.68rem;color:var(--faint);
+  flex:0 0 74px;padding-top:4px;letter-spacing:.02em;white-space:nowrap}
+.logitem .core{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}
+.logitem .top{display:flex;flex-wrap:wrap;gap:7px;align-items:center}
+.logitem .sm2{font-size:.89rem;word-break:break-word}
+.logitem .det{font-size:.83rem;color:var(--muted);white-space:pre-wrap;word-break:break-word}
+.logitem .det.clip{max-height:5.6em;overflow:hidden;
+  -webkit-mask-image:linear-gradient(var(--ink) 62%,transparent);mask-image:linear-gradient(var(--ink) 62%,transparent)}
+.logitem .more{align-self:flex-start;background:none;border:0;cursor:pointer;padding:0;
+  font-family:"IBM Plex Mono",monospace;font-size:.66rem;letter-spacing:.06em;color:var(--brass)}
+.logitem .more:hover{text-decoration:underline}
+.logitem .acts{display:flex;gap:2px;opacity:0;flex:0 0 auto}
+.logitem:hover .acts{opacity:1}
+.logitem .acts button{background:none;border:0;color:var(--faint);font-size:.9rem;
+  padding:0 4px;cursor:pointer;line-height:1.2}
+.logitem .acts button:hover{color:var(--ink)}
+.logitem .acts button.del:hover{color:var(--crimson)}
+.dirtag{font-family:"IBM Plex Mono",monospace;font-size:.66rem;color:var(--faint);letter-spacing:.06em}
+.logempty{padding:14px 0;color:var(--faint);font-size:.86rem}
 
 /* ============ stage rail ============ */
 .rail{display:flex;flex-wrap:wrap;gap:5px}
@@ -516,6 +551,91 @@ function needsAction(c){
 }
 function firmContacts(fid){ return state.contacts.filter(function(c){ return c.firmId === fid; }); }
 
+/* ---------- contact log ---------- */
+var LOG_TYPES = [
+  "Call","Text","Email","Thank-you email","LinkedIn message","Voicemail",
+  "Coffee chat","Meeting","Event","Intro / referral","Note","Other"
+];
+var LOG_DIRS = ["", "Outbound", "Inbound"];
+var LOG_CLASS = {
+  "Call":"p-brass", "Text":"p-slate", "Email":"p-amber", "Thank-you email":"p-green",
+  "LinkedIn message":"p-slate", "Voicemail":"p-grey", "Coffee chat":"p-green",
+  "Meeting":"p-green", "Event":"p-brass", "Intro / referral":"p-green",
+  "Note":"p-grey", "Other":"p-grey"
+};
+function logClass(t){ return LOG_CLASS[t] || "p-grey"; }
+/* a note is something you wrote down, not something that passed between you —
+   logging one never moves the stage or the touch count */
+var PASSIVE_TYPE = {"Note":1};
+var LIVE_TYPE = {"Call":1, "Coffee chat":1, "Meeting":1};
+
+function contactLog(c){
+  if (!c.log) c.log = [];
+  return c.log;
+}
+/* newest first; ts breaks ties inside a single day */
+function sortLog(c){
+  contactLog(c).sort(function(a,b){
+    if ((a.date||"") !== (b.date||"")) return (b.date||"").localeCompare(a.date||"");
+    return (b.ts||0) - (a.ts||0);
+  });
+}
+function logEntry(o){
+  return {
+    id: uid("l"), ts: Date.now(),
+    date: o.date || today(),
+    type: o.type || "Note",
+    dir: o.dir || "",
+    summary: (o.summary || "").trim(),
+    detail: (o.detail || "").trim()
+  };
+}
+/* the one door every interaction goes through, so the timeline, the touch
+   count and the last-touch date can never drift apart */
+function addLog(c, o, applyEffects){
+  var e = logEntry(o);
+  contactLog(c).push(e);
+  sortLog(c);
+  if (applyEffects !== false) applyLogEffects(c, e);
+  return e;
+}
+function applyLogEffects(c, e){
+  if (PASSIVE_TYPE[e.type]) return;
+  if (!c.lastContact || e.date > c.lastContact) c.lastContact = e.date;
+  if (e.dir === "Outbound") c.touches = (c.touches||0) + 1;
+  if (e.dir === "Inbound"){
+    c.replied = true;
+    if (["Not Contacted","Emailed","Follow-Up 1","Follow-Up 2"].indexOf(c.stage) >= 0) setStage(c, "Replied");
+  }
+  if (LIVE_TYPE[e.type]){
+    c.callDate = c.callDate || e.date;
+    if (["Not Contacted","Emailed","Follow-Up 1","Follow-Up 2","Replied","Call Scheduled"].indexOf(c.stage) >= 0) setStage(c, "Call Done");
+  }
+  if (e.type === "Thank-you email" && e.dir !== "Inbound" && c.stage === "Call Done") setStage(c, "Thank-You Sent");
+  if (e.type === "Intro / referral") c.referral = true;
+}
+/* notes used to be a list of their own; they are log entries now.
+   The first paint happens before boot() has decided where the data lives,
+   so a migration done then is held until the store is ready to take it. */
+var pendingMigration = false;
+function migrateLog(){
+  var changed = false;
+  (state.contacts||[]).forEach(function(c){
+    if (!c.log){ c.log = []; changed = true; }
+    if (c.notes && c.notes.length){
+      var n = c.notes.length;
+      c.notes.forEach(function(note, i){
+        c.log.push({ id: uid("l"), ts: n - i, date: note.d || today(),
+          type: "Note", dir: "", summary: note.t || "", detail: "" });
+      });
+      c.notes = [];
+      sortLog(c);
+      changed = true;
+    }
+  });
+  return changed;
+}
+
 /* ---------- routing ---------- */
 var TABS = [["contacts","Contacts"],["firms","Firms"],["compose","Compose"],["settings","Settings"]];
 var route = ssGet("cov.tab") || "contacts";
@@ -549,9 +669,10 @@ function render(){
 /* ================= CONTACTS ================= */
 function viewContacts(v){
   var cs = state.contacts;
-  var sent = 0, replied = 0, calls = 0, refs = 0, act = 0;
+  var sent = 0, replied = 0, calls = 0, refs = 0, act = 0, logged = 0;
   cs.forEach(function(c){
     sent += c.touches || 0;
+    logged += (c.log||[]).length;
     if (c.replied) replied++;
     if (c.callDate || c.stage === "Call Done" || c.stage === "Thank-You Sent" || c.stage === "Advocate") calls++;
     if (c.referral) refs++;
@@ -561,7 +682,8 @@ function viewContacts(v){
   var rate = emailedPeople ? Math.round(replied / emailedPeople * 100) + "%" : "—";
 
   var kp = h("div", {class:"kpis"});
-  [[cs.length,"Contacts"],[sent,"Emails sent"],[rate,"Reply rate"],[calls,"Calls done"],[refs,"Referrals"]].forEach(function(k){
+  [[cs.length,"Contacts"],[sent,"Emails sent"],[rate,"Reply rate"],[calls,"Calls done"],
+   [refs,"Referrals"],[logged,"Logged"]].forEach(function(k){
     kp.appendChild(h("div",{class:"kpi"},[h("div",{class:"n",text:String(k[0])}),h("div",{class:"k",text:k[1]})]));
   });
   kp.appendChild(h("div",{class:"kpi" + (act ? " alert" : "")},[
@@ -630,7 +752,9 @@ function viewContacts(v){
       if (ui.needs && !needsAction(c)) return false;
       if (!ui.stage && !ui.q && c.stage === "Dead") return false;
       if (s){
-        var hay = (fullName(c) + " " + firmName(c.firmId) + " " + c.group + " " + c.connection + " " + c.title + " " + (c.tags||[]).join(" ")).toLowerCase();
+        var hay = (fullName(c) + " " + firmName(c.firmId) + " " + c.group + " " + c.connection + " " + c.title + " " +
+          (c.tags||[]).join(" ") + " " +
+          (c.log||[]).map(function(l){ return l.type + " " + l.summary + " " + l.detail; }).join(" ")).toLowerCase();
         if (hay.indexOf(s) < 0) return false;
       }
       return true;
@@ -674,13 +798,14 @@ function viewContacts(v){
       if (!c.lastContact) lastCell = h("span",{class:"fresh",text:"—"});
       else if (isStale(c)) lastCell = h("span",{class:"stale",text:d + "d · stale"});
       else lastCell = h("span",{class:"fresh",text:d === 0 ? "today" : d + "d ago"});
+      var lastLog = (c.log||[])[0];
       var tr = h("tr",{onclick:function(){ openContact(c.id); }},[
         h("td",{},[h("span",{class:"dot d"+c.priority,title:"P"+c.priority})]),
         h("td",{class:"nm"},[document.createTextNode(fullName(c)), h("span",{class:"sub",text:(c.title||"—")})]),
         h("td",{},[document.createTextNode(firmName(c.firmId) || "—"), h("span",{class:"sub",text:c.group||""})]),
         h("td",{},[document.createTextNode(c.connection || "—")]),
         h("td",{},[h("span",{class:"pill "+stageClass(c.stage),text:c.stage})]),
-        h("td",{},[lastCell]),
+        h("td",{},[lastCell, lastLog ? h("span",{class:"sub",text:lastLog.type}) : null]),
         h("td",{},[document.createTextNode(c.nextAction || "—")])
       ]);
       tbody.appendChild(tr);
@@ -690,7 +815,7 @@ function viewContacts(v){
 }
 
 /* ================= CONTACT DRAWER ================= */
-function closeLayer(){ clear($("layer")); }
+function closeLayer(){ editingLog = ""; clear($("layer")); }
 function drawer(title, sub, bodyBuild, footBuild){
   var layer = $("layer"); clear(layer);
   var scrim = h("div",{class:"scrim",onclick:closeLayer});
@@ -771,11 +896,16 @@ function openContact(id){
     /* quick actions */
     var qa = h("div",{class:"filters"});
     qa.appendChild(h("button",{class:"btn sm",text:"Log email sent today",onclick:function(){
-      logEmail(c); save(); openContact(id); render(); toast("Logged — " + c.stage);
+      logEmail(c);
+      /* logEmail already stamped the date and the touch — the entry is the record only */
+      addLog(c, {type:"Email", dir:"Outbound", summary:"Email sent"}, false);
+      save(); openContact(id); render(); toast("Logged — " + c.stage);
     }}));
     qa.appendChild(h("button",{class:"btn sm",text:"Mark replied",onclick:function(){
       c.replied = true; c.stage = "Replied"; c.lastContact = today();
-      c.nextAction = "Propose call times"; save(); openContact(id); render();
+      c.nextAction = "Propose call times";
+      addLog(c, {type:"Email", dir:"Inbound", summary:"They replied"}, false);
+      save(); openContact(id); render();
     }}));
     qa.appendChild(h("button",{class:"btn sm",text:"Compose →",onclick:function(){
       ui.composeTo = c.id; ui.draft = null; ssSet("cov.to", c.id);
@@ -836,31 +966,8 @@ function openContact(id){
     fs3.appendChild(checks);
     body.appendChild(fs3);
 
-    /* notes */
-    var fs4 = h("div",{class:"fieldset"},[h("div",{class:"lg",text:"Notes log"})]);
-    var ta = h("textarea",{placeholder:"What did they say? Deal they're on, group colour, what to ask next time…"});
-    ta.style.minHeight = "62px";
-    var addNote = h("button",{class:"btn sm",text:"Add note",onclick:function(){
-      var t = ta.value.trim(); if(!t) return;
-      c.notes = c.notes || [];
-      c.notes.unshift({d: today(), t: t});
-      ta.value = ""; save(); openContact(id);
-    }});
-    fs4.appendChild(h("div",{class:"f wide"},[ta]));
-    fs4.appendChild(h("div",{class:"filters"},[addNote]));
-    var nl = h("div",{class:"notes"});
-    (c.notes||[]).forEach(function(n, i){
-      nl.appendChild(h("div",{class:"note"},[
-        h("span",{class:"d",text:n.d}),
-        h("span",{class:"t",text:n.t}),
-        h("button",{class:"del",title:"Delete note",html:"&times;",onclick:function(ev){
-          ev.stopPropagation(); c.notes.splice(i,1); save(); openContact(id);
-        }})
-      ]));
-    });
-    if (!(c.notes||[]).length) nl.appendChild(h("div",{class:"hint",text:"No notes yet."}));
-    fs4.appendChild(nl);
-    body.appendChild(fs4);
+    /* the log */
+    body.appendChild(logSection(c, function(){ openContact(id); render(); }));
   }, function(foot){
     foot.appendChild(h("button",{class:"btn primary",text:"Done",onclick:function(){ flush(); closeLayer(); }}));
     foot.appendChild(h("span",{class:"spacer"}));
@@ -870,6 +977,169 @@ function openContact(id){
       save(); closeLayer(); render();
     }}));
   });
+}
+
+/* ================= CONTACT LOG UI ================= */
+var editingLog = "";
+
+function mkSelect(options, val){
+  var sel = h("select");
+  options.forEach(function(o){
+    sel.appendChild(h("option",{value:o, text:o||"—", selected:String(val)===String(o)?"selected":null}));
+  });
+  return sel;
+}
+function fldWrap(label, input, wide){
+  return h("div",{class:"f" + (wide?" wide":"")},[h("label",{text:label}), input]);
+}
+
+/* the whole per-person history: a compose bar on top, the timeline under it */
+function logSection(c, refresh){
+  var fs = h("div",{class:"fieldset"},[
+    h("div",{class:"lg",text:"Contact log"}),
+    h("div",{class:"hint",text:"Every call, text, email or meeting with this person — newest first."})
+  ]);
+
+  var typeSel = mkSelect(LOG_TYPES, "Call");
+  var dirSel = mkSelect(LOG_DIRS, "Outbound");
+  var dateIn = h("input",{type:"date",value:today()});
+  var sumIn = h("input",{type:"text",placeholder:"One line — what it was about"});
+  var detIn = h("textarea",{placeholder:"Anything worth remembering: what they said, what to ask next time…"});
+  detIn.style.minHeight = "58px";
+
+  var quick = h("div",{class:"logquick"});
+  function syncQuick(){
+    Array.prototype.forEach.call(quick.childNodes, function(b){
+      b.className = b.getAttribute("data-t") === typeSel.value ? "on" : "";
+    });
+  }
+  ["Call","Text","Email","Thank-you email","LinkedIn message","Meeting","Note"].forEach(function(t){
+    quick.appendChild(h("button",{"data-t":t, text:t, onclick:function(){
+      typeSel.value = t;
+      dirSel.value = (t === "Note") ? "" : (dirSel.value || "Outbound");
+      syncQuick();
+      sumIn.focus();
+    }}));
+  });
+  fs.appendChild(quick);
+
+  typeSel.addEventListener("change", function(){
+    if (typeSel.value === "Note") dirSel.value = "";
+    else if (!dirSel.value) dirSel.value = "Outbound";
+    syncQuick();
+  });
+  syncQuick();
+
+  var form = h("div",{class:"logform"});
+  var g = h("div",{class:"fgrid"});
+  g.appendChild(fldWrap("Type", typeSel));
+  g.appendChild(fldWrap("Direction", dirSel));
+  g.appendChild(fldWrap("Date", dateIn));
+  form.appendChild(g);
+  form.appendChild(fldWrap("Summary", sumIn, true));
+  form.appendChild(fldWrap("Detail", detIn, true));
+
+  var applyCb = h("input",{type:"checkbox"});
+  applyCb.checked = true;
+  var acts = h("div",{class:"filters"});
+  acts.appendChild(h("button",{class:"btn primary sm",text:"Log it",onclick:commit}));
+  acts.appendChild(h("label",{class:"checkline",title:"Stamps the last-touch date, counts the touch, and moves the stage where it obviously should move"},
+    [applyCb, document.createTextNode("Update stage and last touch")]));
+  form.appendChild(acts);
+  fs.appendChild(form);
+
+  sumIn.addEventListener("keydown", function(e){
+    if (e.key === "Enter"){ e.preventDefault(); commit(); }
+  });
+
+  function commit(){
+    var sum = sumIn.value.trim(), det = detIn.value.trim();
+    if (!sum && !det){ sumIn.focus(); toast("Say what happened first"); return; }
+    addLog(c, {
+      date: dateIn.value || today(), type: typeSel.value, dir: dirSel.value,
+      summary: sum || typeSel.value, detail: det
+    }, applyCb.checked);
+    save();
+    toast("Logged — " + typeSel.value);
+    refresh();
+  }
+
+  var feed = h("div",{class:"logfeed"});
+  var entries = contactLog(c);
+  if (!entries.length){
+    feed.appendChild(h("div",{class:"logempty",
+      text:"Nothing logged yet. Anything you record above lands here as a dated timeline."}));
+  } else {
+    entries.forEach(function(e){ feed.appendChild(logRow(c, e, refresh)); });
+  }
+  fs.appendChild(feed);
+  return fs;
+}
+
+function logRow(c, e, refresh){
+  if (editingLog === e.id) return logEditRow(c, e, refresh);
+  var core = h("div",{class:"core"},[
+    h("div",{class:"top"},[
+      h("span",{class:"pill "+logClass(e.type), text:e.type}),
+      e.dir ? h("span",{class:"dirtag", text: e.dir === "Inbound" ? "← inbound" : "→ outbound"}) : null
+    ])
+  ]);
+  if (e.summary) core.appendChild(h("div",{class:"sm2", text:e.summary}));
+  if (e.detail){
+    var long = e.detail.length > 280;
+    var det = h("div",{class:"det" + (long?" clip":""), text:e.detail});
+    core.appendChild(det);
+    if (long){
+      var more = h("button",{class:"more", text:"show more"});
+      more.addEventListener("click", function(){
+        var open = det.className.indexOf("clip") < 0;
+        det.className = open ? "det clip" : "det";
+        more.textContent = open ? "show more" : "show less";
+      });
+      core.appendChild(more);
+    }
+  }
+  return h("div",{class:"logitem"},[
+    h("div",{class:"when", text:e.date}),
+    core,
+    h("div",{class:"acts"},[
+      h("button",{title:"Edit entry", html:"&#9998;", onclick:function(){ editingLog = e.id; refresh(); }}),
+      h("button",{class:"del", title:"Delete entry", html:"&times;", onclick:function(){
+        c.log = contactLog(c).filter(function(x){ return x.id !== e.id; });
+        save(); refresh();
+      }})
+    ])
+  ]);
+}
+
+/* editing an entry corrects the record only — it deliberately does not
+   re-run the stage effects a fresh entry triggers */
+function logEditRow(c, e, refresh){
+  var t = mkSelect(LOG_TYPES, e.type);
+  var d = mkSelect(LOG_DIRS, e.dir);
+  var dt = h("input",{type:"date", value:esc(e.date)});
+  var sum = h("input",{type:"text", value:esc(e.summary)});
+  var det = h("textarea");
+  det.value = esc(e.detail);
+  det.style.minHeight = "52px";
+
+  var form = h("div",{class:"logform"});
+  var g = h("div",{class:"fgrid"});
+  g.appendChild(fldWrap("Type", t));
+  g.appendChild(fldWrap("Direction", d));
+  g.appendChild(fldWrap("Date", dt));
+  form.appendChild(g);
+  form.appendChild(fldWrap("Summary", sum, true));
+  form.appendChild(fldWrap("Detail", det, true));
+  form.appendChild(h("div",{class:"filters"},[
+    h("button",{class:"btn primary sm", text:"Save entry", onclick:function(){
+      e.type = t.value; e.dir = d.value; e.date = dt.value || e.date;
+      e.summary = sum.value.trim(); e.detail = det.value.trim();
+      sortLog(c); editingLog = ""; save(); refresh();
+    }}),
+    h("button",{class:"btn sm", text:"Cancel", onclick:function(){ editingLog = ""; refresh(); }})
+  ]));
+  return form;
 }
 
 function setStage(c, s){
@@ -978,7 +1248,8 @@ function addContactForm(){
       connection: vals.conn, email: vals.email, emailConf: vals.email ? "pattern" : "unknown",
       year:"", school:"", linkedin:"", stage:"Not Contacted", priority: parseInt(vals.prio,10)||3,
       lastContact:"", nextAction:"Draft cold intro", nextDate:"", touches:0, replied:false,
-      callDate:"", referral:false, tags:[], notes: vals.note.trim() ? [{d:today(), t:vals.note.trim()}] : []
+      callDate:"", referral:false, tags:[], notes:[],
+      log: vals.note.trim() ? [logEntry({type:"Note", summary: vals.note.trim()})] : []
     };
     state.contacts.push(c);
     save();
@@ -1271,8 +1542,7 @@ function viewCompose(v){
   }}));
   foot.appendChild(h("button",{class:"btn",text:"Log as sent",onclick:function(){
     logEmail(c);
-    c.notes = c.notes || [];
-    c.notes.unshift({d: today(), t: "Sent: " + subjIn.value});
+    addLog(c, {type:"Email", dir:"Outbound", summary:"Sent: " + subjIn.value, detail: ta.value}, false);
     ui.draft = null; save(); render(); toast("Logged — " + c.stage);
   }}));
   foot.appendChild(h("button",{class:"btn ghost sm",text:"Reset to template",onclick:function(){ ui.draft = null; render(); }}));
@@ -1287,7 +1557,7 @@ function viewCompose(v){
   var tip = h("div",{class:"sectitle"},[h("span",{class:"e",text:"Reminder"})]);
   v.appendChild(tip);
   v.appendChild(h("div",{class:"hint",style:"color:var(--muted);font-size:.88rem;max-width:70ch",
-    text:"Rewrite the marked custom line before sending — it is the only part of the email that proves you did not mass-blast it. “Log as sent” advances the stage, stamps today, bumps the touch count and writes the subject into the notes log."}));
+    text:"Rewrite the marked custom line before sending — it is the only part of the email that proves you did not mass-blast it. “Log as sent” advances the stage, stamps today, bumps the touch count and files the email in this person’s contact log."}));
 }
 
 /* ================= SETTINGS ================= */
@@ -1347,15 +1617,33 @@ function viewSettings(v){
       navigator.clipboard.writeText(JSON.stringify(state,null,1)).then(function(){ toast("Copied — paste somewhere safe"); });
     }}),
     h("button",{class:"btn",text:"Copy contacts as CSV",onclick:function(){
-      var head = ["Name","Firm","Title","Group","Office","Connection","Email","Stage","Priority","Last contact","Next action","Touches","Replied","Referral","Notes"];
+      var head = ["Name","Firm","Title","Group","Office","Connection","Email","Stage","Priority","Last contact","Next action","Touches","Replied","Referral","Log"];
       var lines = [head.join(",")];
       state.contacts.forEach(function(c){
         var row = [fullName(c), firmName(c.firmId), c.title, c.group, c.office, c.connection, c.email,
           c.stage, "P"+c.priority, c.lastContact, c.nextAction, c.touches, c.replied?"Yes":"No",
-          c.referral?"Yes":"No", (c.notes||[]).map(function(n){return n.d+": "+n.t;}).join(" | ")];
+          c.referral?"Yes":"No", (c.log||[]).map(function(l){
+            return l.date + " " + l.type + ": " + l.summary;
+          }).join(" | ")];
         lines.push(row.map(function(x){ return '"' + String(x==null?"":x).replace(/"/g,'""') + '"'; }).join(","));
       });
       navigator.clipboard.writeText(lines.join("\n")).then(function(){ toast("CSV copied"); });
+    }}),
+    h("button",{class:"btn",text:"Copy contact log as CSV",onclick:function(){
+      var head = ["Date","Name","Firm","Type","Direction","Summary","Detail"];
+      var rows = [];
+      state.contacts.forEach(function(c){
+        (c.log||[]).forEach(function(l){
+          rows.push([l.date, fullName(c), firmName(c.firmId), l.type, l.dir, l.summary, l.detail]);
+        });
+      });
+      rows.sort(function(a,b){ return (b[0]||"").localeCompare(a[0]||""); });
+      if (!rows.length){ toast("Nothing logged yet"); return; }
+      var lines = [head.join(",")];
+      rows.forEach(function(r){
+        lines.push(r.map(function(x){ return '"' + String(x==null?"":x).replace(/"/g,'""') + '"'; }).join(","));
+      });
+      navigator.clipboard.writeText(lines.join("\n")).then(function(){ toast(rows.length + " log entries copied"); });
     }})
   ]));
   c4.appendChild(h("div",{class:"hint",style:"color:var(--muted)",
@@ -1397,7 +1685,11 @@ safeRender();
 boot().then(function(){ safeRender(); if (dirty) flush(); },
            function(){ ready = true; safeRender(); });
 function safeRender(){
-try { render(); } catch(err){
+try {
+  if (migrateLog()) pendingMigration = true;
+  if (pendingMigration && ready){ pendingMigration = false; save(); }
+  render();
+} catch(err){
   $("view").appendChild(h("div",{class:"empty",text:"Something broke while rendering: " + (err && err.message)}));
   if (window.console) console.error(err);
 }
