@@ -243,6 +243,26 @@ td .sub{display:block;font-size:.72rem;color:var(--faint);font-weight:400;
 .note:hover .del{opacity:1}
 .note .del:hover{color:var(--crimson)}
 
+/* ============ interaction log ============ */
+.ixlist{display:flex;flex-direction:column;gap:0}
+.ix{padding:11px 0;border-bottom:1px solid var(--rule-soft);display:flex;gap:12px;align-items:flex-start}
+.ix:last-child{border-bottom:0}
+.ix .meta{flex:0 0 118px;display:flex;flex-direction:column;gap:5px;align-items:flex-start}
+.ix .d{font-family:"IBM Plex Mono",monospace;font-size:.68rem;color:var(--faint);letter-spacing:.03em}
+.ix .t{font-size:.89rem;white-space:pre-wrap;flex:1;min-width:0;word-break:break-word;padding-top:1px}
+.ix .acts{display:flex;gap:2px;opacity:0;flex:0 0 auto}
+.ix:hover .acts{opacity:1}
+.ix .acts button{background:none;border:0;color:var(--faint);font-size:.72rem;padding:2px 5px;
+  font-family:"IBM Plex Mono",monospace;letter-spacing:.06em;text-transform:uppercase;cursor:pointer;border-radius:3px}
+.ix .acts button:hover{background:var(--hover);color:var(--ink)}
+.ix .acts button.del:hover{color:var(--crimson)}
+.ixhead{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+@media (max-width:640px){
+  .ix{flex-wrap:wrap}
+  .ix .meta{flex-direction:row;align-items:center;flex-basis:100%}
+  .ix .acts{opacity:1}
+}
+
 /* ============ stage rail ============ */
 .rail{display:flex;flex-wrap:wrap;gap:5px}
 .rail button{
@@ -516,6 +536,24 @@ function needsAction(c){
 }
 function firmContacts(fid){ return state.contacts.filter(function(c){ return c.firmId === fid; }); }
 
+/* ---------- interaction log ---------- */
+var IX_TYPES = ["Call","Text","Email chain","Coffee chat","Meeting","LinkedIn message","Other"];
+var IX_CLASS = {
+  "Call":"p-green", "Text":"p-brass", "Email chain":"p-amber", "Coffee chat":"p-slate",
+  "Meeting":"p-slate", "LinkedIn message":"p-grey", "Other":"p-grey"
+};
+function ixClass(t){ return IX_CLASS[t] || "p-grey"; }
+/* newest first; ISO dates sort lexicographically, ties break on when it was logged */
+function interactions(c){
+  return (c.interactions || []).slice().sort(function(a,b){
+    var r = String(b.date||"").localeCompare(String(a.date||""));
+    return r !== 0 ? r : (b.logged||0) - (a.logged||0);
+  });
+}
+function ixHaystack(c){
+  return (c.interactions || []).map(function(x){ return (x.type||"") + " " + (x.text||""); }).join(" ");
+}
+
 /* ---------- routing ---------- */
 var TABS = [["contacts","Contacts"],["firms","Firms"],["compose","Compose"],["settings","Settings"]];
 var route = ssGet("cov.tab") || "contacts";
@@ -630,7 +668,8 @@ function viewContacts(v){
       if (ui.needs && !needsAction(c)) return false;
       if (!ui.stage && !ui.q && c.stage === "Dead") return false;
       if (s){
-        var hay = (fullName(c) + " " + firmName(c.firmId) + " " + c.group + " " + c.connection + " " + c.title + " " + (c.tags||[]).join(" ")).toLowerCase();
+        var hay = (fullName(c) + " " + firmName(c.firmId) + " " + c.group + " " + c.connection + " " + c.title + " " +
+          (c.tags||[]).join(" ") + " " + ixHaystack(c)).toLowerCase();
         if (hay.indexOf(s) < 0) return false;
       }
       return true;
@@ -674,13 +713,16 @@ function viewContacts(v){
       if (!c.lastContact) lastCell = h("span",{class:"fresh",text:"—"});
       else if (isStale(c)) lastCell = h("span",{class:"stale",text:d + "d · stale"});
       else lastCell = h("span",{class:"fresh",text:d === 0 ? "today" : d + "d ago"});
+      var ixn = (c.interactions||[]).length;
+      var lastCol = [lastCell];
+      if (ixn) lastCol.push(h("span",{class:"sub",text: ixn + (ixn === 1 ? " interaction" : " interactions")}));
       var tr = h("tr",{onclick:function(){ openContact(c.id); }},[
         h("td",{},[h("span",{class:"dot d"+c.priority,title:"P"+c.priority})]),
         h("td",{class:"nm"},[document.createTextNode(fullName(c)), h("span",{class:"sub",text:(c.title||"—")})]),
         h("td",{},[document.createTextNode(firmName(c.firmId) || "—"), h("span",{class:"sub",text:c.group||""})]),
         h("td",{},[document.createTextNode(c.connection || "—")]),
         h("td",{},[h("span",{class:"pill "+stageClass(c.stage),text:c.stage})]),
-        h("td",{},[lastCell]),
+        h("td",{},lastCol),
         h("td",{},[document.createTextNode(c.nextAction || "—")])
       ]);
       tbody.appendChild(tr);
@@ -706,10 +748,20 @@ function drawer(title, sub, bodyBuild, footBuild){
   layer.appendChild(scrim); layer.appendChild(d);
   armEsc();
 }
+var escAction = closeLayer;
 function escOnce(e){
-  if (e.key === "Escape"){ closeLayer(); document.removeEventListener("keydown", escOnce); }
+  if (e.key === "Escape"){
+    var act = escAction; escAction = closeLayer;
+    document.removeEventListener("keydown", escOnce);
+    act();
+  }
 }
-function armEsc(){ document.removeEventListener("keydown", escOnce); document.addEventListener("keydown", escOnce); }
+/* pass a handler when Escape should step back somewhere rather than close everything */
+function armEsc(onEsc){
+  escAction = onEsc || closeLayer;
+  document.removeEventListener("keydown", escOnce);
+  document.addEventListener("keydown", escOnce);
+}
 
 function field(label, val, onchange, opts){
   opts = opts || {};
@@ -782,6 +834,60 @@ function openContact(id){
       closeLayer(); go("compose");
     }}));
     body.appendChild(qa);
+
+    /* interaction log */
+    var fsx = h("div",{id:"ix-anchor",class:"fieldset"});
+    var ixCount = h("span",{class:"count"});
+    fsx.appendChild(h("div",{class:"ixhead"},[
+      h("div",{class:"lg",text:"Interaction log"}),
+      ixCount,
+      h("span",{class:"spacer"}),
+      h("button",{class:"btn sm primary",text:"+ Log interaction",onclick:function(){
+        logInteractionForm(c.id, null);
+      }})
+    ]));
+    var ixList = h("div",{class:"ixlist"});
+    var ixAll = false;
+    function drawIx(){
+      clear(ixList);
+      var log = interactions(c);
+      ixCount.textContent = log.length ? log.length + " logged" : "";
+      if (!log.length){
+        ixList.appendChild(h("div",{class:"hint",
+          text:"Nothing logged yet \u2014 record a call, a text, or an email chain and it stays on their record."}));
+        return;
+      }
+      var shown = ixAll ? log : log.slice(0, 5);
+      shown.forEach(function(x){
+        ixList.appendChild(h("div",{class:"ix"},[
+          h("div",{class:"meta"},[
+            h("span",{class:"pill " + ixClass(x.type), text: x.type || "Other"}),
+            h("span",{class:"d", text: x.date || "\u2014"})
+          ]),
+          h("div",{class:"t", text: x.text || ""}),
+          h("div",{class:"acts"},[
+            h("button",{title:"Edit this entry",text:"Edit",onclick:function(){
+              logInteractionForm(c.id, x);
+            }}),
+            h("button",{class:"del",title:"Delete this entry",text:"Delete",onclick:function(){
+              if (!confirm("Delete this " + (x.type||"interaction").toLowerCase() + " from " + (x.date||"the log") + "?")) return;
+              c.interactions = (c.interactions||[]).filter(function(y){ return y !== x; });
+              save(); drawIx(); render();
+            }})
+          ])
+        ]));
+      });
+      if (log.length > 5){
+        ixList.appendChild(h("div",{class:"filters",style:"margin:10px 0 0"},[
+          h("button",{class:"btn sm ghost",
+            text: ixAll ? "Show latest 5" : "Show all " + log.length,
+            onclick:function(){ ixAll = !ixAll; drawIx(); }})
+        ]));
+      }
+    }
+    drawIx();
+    fsx.appendChild(ixList);
+    body.appendChild(fsx);
 
     /* identity */
     var fs1 = h("div",{class:"fieldset"},[h("div",{class:"lg",text:"Who"})]);
@@ -920,6 +1026,88 @@ function guessEmail(c){
   return local + "@" + dom;
 }
 
+/* ================= LOG AN INTERACTION ================= */
+/* Opens over the contact drawer; closing either way returns to that contact. */
+function logInteractionForm(cid, existing){
+  var c = contact(cid); if (!c) return;
+  var editing = !!existing;
+  var vals = {
+    date: editing ? (existing.date || today()) : today(),
+    type: editing ? (existing.type || IX_TYPES[0]) : IX_TYPES[0],
+    text: editing ? (existing.text || "") : "",
+    touch: !editing
+  };
+
+  var layer = $("layer"); clear(layer);
+  function back(){ closeLayer(); openContact(cid); }
+  var scrim = h("div",{class:"scrim",onclick:back});
+  var m = h("div",{class:"modal",role:"dialog","aria-modal":"true"});
+  m.appendChild(h("div",{class:"modal-head"},[
+    h("h2",{text: editing ? "Edit interaction" : "Log an interaction"}),
+    h("span",{class:"count",text: fullName(c)}),
+    h("span",{class:"spacer"}),
+    h("button",{class:"xbtn",onclick:back,"aria-label":"Close",html:"&times;"})
+  ]));
+
+  var body = h("div",{class:"modal-body"});
+  var g = h("div",{class:"fgrid"});
+
+  var dateIn = h("input",{type:"date",value:vals.date});
+  dateIn.addEventListener("change", function(){ vals.date = dateIn.value; });
+  g.appendChild(h("div",{class:"f"},[h("label",{text:"Date"}), dateIn]));
+
+  var typeIn = h("select");
+  IX_TYPES.forEach(function(t){
+    typeIn.appendChild(h("option",{value:t,text:t,selected:vals.type===t?"selected":null}));
+  });
+  typeIn.addEventListener("change", function(){ vals.type = typeIn.value; });
+  g.appendChild(h("div",{class:"f"},[h("label",{text:"Type"}), typeIn]));
+  body.appendChild(g);
+
+  var ta = h("textarea",{placeholder:"What did you talk about? What did they say, what did you promise, what to ask next time\u2026"});
+  ta.style.minHeight = "130px";
+  ta.value = vals.text;
+  ta.addEventListener("input", function(){ vals.text = ta.value; });
+  body.appendChild(h("div",{class:"f wide"},[h("label",{text:"What happened"}), ta]));
+
+  var cb = h("input",{type:"checkbox"});
+  cb.checked = vals.touch;
+  cb.addEventListener("change", function(){ vals.touch = cb.checked; });
+  body.appendChild(h("label",{class:"checkline"},[cb, document.createTextNode("Move this contact\u2019s last touch to this date")]));
+  body.appendChild(h("div",{class:"hint",style:"color:var(--faint)",
+    text:"Last touch drives the stale flag and the needs-action count \u2014 leave this on unless you are backfilling an old conversation."}));
+  m.appendChild(body);
+
+  function commit(){
+    var t = vals.text.trim();
+    if (!t){ ta.focus(); toast("Say what happened first"); return false; }
+    if (!vals.date){ dateIn.focus(); toast("Pick a date"); return false; }
+    if (editing){
+      existing.date = vals.date; existing.type = vals.type; existing.text = t;
+    } else {
+      c.interactions = c.interactions || [];
+      c.interactions.push({id: uid("ix"), date: vals.date, type: vals.type, text: t, logged: Date.now()});
+    }
+    if (vals.touch && (!c.lastContact || vals.date > c.lastContact)) c.lastContact = vals.date;
+    save();
+    return true;
+  }
+
+  var foot = h("div",{class:"modal-foot"});
+  foot.appendChild(h("button",{class:"btn primary",text: editing ? "Save changes" : "Log it",onclick:function(){
+    if (!commit()) return;
+    closeLayer(); openContact(cid); render();
+    toast(editing ? "Interaction updated" : vals.type + " logged \u2014 " + fullName(c));
+  }}));
+  foot.appendChild(h("span",{class:"spacer"}));
+  foot.appendChild(h("button",{class:"btn ghost",text:"Cancel",onclick:back}));
+  m.appendChild(foot);
+
+  layer.appendChild(scrim); layer.appendChild(m);
+  armEsc(back);
+  setTimeout(function(){ ta.focus(); }, 30);
+}
+
 /* ================= ADD CONTACT ================= */
 function addContactForm(){
   var layer = $("layer"); clear(layer);
@@ -978,7 +1166,8 @@ function addContactForm(){
       connection: vals.conn, email: vals.email, emailConf: vals.email ? "pattern" : "unknown",
       year:"", school:"", linkedin:"", stage:"Not Contacted", priority: parseInt(vals.prio,10)||3,
       lastContact:"", nextAction:"Draft cold intro", nextDate:"", touches:0, replied:false,
-      callDate:"", referral:false, tags:[], notes: vals.note.trim() ? [{d:today(), t:vals.note.trim()}] : []
+      callDate:"", referral:false, tags:[], notes: vals.note.trim() ? [{d:today(), t:vals.note.trim()}] : [],
+      interactions: []
     };
     state.contacts.push(c);
     save();
@@ -1347,12 +1536,14 @@ function viewSettings(v){
       navigator.clipboard.writeText(JSON.stringify(state,null,1)).then(function(){ toast("Copied — paste somewhere safe"); });
     }}),
     h("button",{class:"btn",text:"Copy contacts as CSV",onclick:function(){
-      var head = ["Name","Firm","Title","Group","Office","Connection","Email","Stage","Priority","Last contact","Next action","Touches","Replied","Referral","Notes"];
+      var head = ["Name","Firm","Title","Group","Office","Connection","Email","Stage","Priority","Last contact","Next action","Touches","Replied","Referral","Interactions","Notes"];
       var lines = [head.join(",")];
       state.contacts.forEach(function(c){
         var row = [fullName(c), firmName(c.firmId), c.title, c.group, c.office, c.connection, c.email,
           c.stage, "P"+c.priority, c.lastContact, c.nextAction, c.touches, c.replied?"Yes":"No",
-          c.referral?"Yes":"No", (c.notes||[]).map(function(n){return n.d+": "+n.t;}).join(" | ")];
+          c.referral?"Yes":"No",
+          interactions(c).map(function(x){ return x.date+" "+x.type+": "+x.text; }).join(" | "),
+          (c.notes||[]).map(function(n){return n.d+": "+n.t;}).join(" | ")];
         lines.push(row.map(function(x){ return '"' + String(x==null?"":x).replace(/"/g,'""') + '"'; }).join(","));
       });
       navigator.clipboard.writeText(lines.join("\n")).then(function(){ toast("CSV copied"); });
