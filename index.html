@@ -174,6 +174,8 @@ td .sub{display:block;font-size:.72rem;color:var(--faint);font-weight:400;
 .d1{background:var(--crimson)} .d2{background:var(--brass)} .d3{background:var(--faint)}
 .stale{color:var(--crimson);font-family:"IBM Plex Mono",monospace;font-size:.74rem}
 .fresh{color:var(--faint);font-family:"IBM Plex Mono",monospace;font-size:.74rem}
+td .sub.stale{color:var(--crimson);font-family:"IBM Plex Mono",monospace}
+td .sub.fresh{color:var(--faint);font-family:"IBM Plex Mono",monospace}
 
 /* ============ drawer ============ */
 .scrim{position:fixed;inset:0;background:rgba(14,21,32,.34);z-index:50;backdrop-filter:blur(1.5px)}
@@ -363,7 +365,32 @@ function daysSince(iso){
   if(!iso) return null;
   var ms = Date.parse(iso + "T00:00:00");
   if (isNaN(ms)) return null;
-  return Math.floor((Date.parse(today() + "T00:00:00") - ms) / 86400000);
+  /* both ends are local midnight, so the gap is a whole number of days give or
+     take an hour of daylight saving — round, never floor, or the clock change
+     swallows a day */
+  return Math.round((Date.parse(today() + "T00:00:00") - ms) / 86400000);
+}
+/* positive = still ahead of us, negative = overdue */
+function daysUntil(iso){ var d = daysSince(iso); return d === null ? null : -d; }
+function shiftDays(iso, n){
+  var ms = Date.parse((iso || today()) + "T00:00:00");
+  if (isNaN(ms)) ms = Date.parse(today() + "T00:00:00");
+  var d = new Date(ms); d.setDate(d.getDate() + n);
+  return d.getFullYear() + "-" + pad2(d.getMonth()+1) + "-" + pad2(d.getDate());
+}
+function agoText(d){
+  if (d === null) return "—";
+  if (d === 0) return "today";
+  if (d === 1) return "yesterday";
+  if (d < 0) return "in " + (-d) + "d";
+  return d + "d ago";
+}
+function dueText(d){
+  if (d === null) return "";
+  if (d === 0) return "due today";
+  if (d < 0) return (-d) + "d overdue";
+  if (d === 1) return "due tomorrow";
+  return "in " + d + "d";
 }
 function uid(p){ return p + Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
 function firm(id){ for(var i=0;i<state.firms.length;i++) if(state.firms[i].id===id) return state.firms[i]; return null; }
@@ -404,7 +431,7 @@ function assemble(meta, contacts, firms){
 function lsLoad(){
   try {
     var raw = localStorage.getItem(LS);
-    if (raw) state = JSON.parse(raw);
+    if (raw){ state = JSON.parse(raw); migrate(); }
   } catch(e){}
 }
 function lsSave(){
@@ -436,6 +463,7 @@ function boot(){
           return writeAll().then(function(){ dirty = false; setFlag("saved"); });
         }
         state = assemble(sn[0].data(), sn[1].data(), sn[2].data());
+        migrate();
         markWritten();
         ready = true; setFlag("saved");
       } else {
@@ -508,13 +536,69 @@ function isStale(c){
   var d = staleDays(c);
   return d !== null && d >= (state.settings.bumpDays || 7);
 }
+function isDue(c){ var d = daysUntil(c.nextDate); return d !== null && d <= 0; }
 function needsAction(c){
   if (c.stage === "Dead" || c.stage === "Advocate") return false;
+  if (isDue(c)) return true;
   if (c.stage === "Not Contacted") return c.priority <= 2;
   if (c.stage === "Replied") return true;
   return isStale(c);
 }
 function firmContacts(fid){ return state.contacts.filter(function(c){ return c.firmId === fid; }); }
+
+/* ---------- calls ---------- */
+/* Records written before calls were counted only carry a call date and a stage,
+   so read one call out of those rather than showing them as zero. */
+function impliedCalls(c){
+  return (c.callDate || c.stage === "Call Done" || c.stage === "Thank-You Sent" || c.stage === "Advocate") ? 1 : 0;
+}
+function callCount(c){
+  return typeof c.calls === "number" ? c.calls : impliedCalls(c);
+}
+function firmCalls(fid){
+  return firmContacts(fid).reduce(function(n, c){ return n + callCount(c); }, 0);
+}
+/* The explicit "I just had a call" action: always one more call, whatever the
+   stage rail says. */
+function logCall(c){
+  var n = callCount(c) + 1;
+  c.callDate = today();
+  c.replied = true;
+  /* someone already thanked or advocating stays where they are — a catch-up
+     call shouldn't drag them back down the funnel */
+  if (c.stage !== "Thank-You Sent" && c.stage !== "Advocate") setStage(c, "Call Done");
+  c.calls = n;
+  c.lastContact = today();
+  c.nextDate = defaultNextDate(c);
+}
+
+/* ---------- the days system ---------- */
+/* Every live stage owes a next action on a date; without one the Next action
+   column has nothing to count down to. */
+function defaultNextDate(c){
+  var bump = state.settings.bumpDays || 7;
+  var base = c.lastContact || today();
+  switch (c.stage){
+    case "Not Contacted":  return today();
+    case "Emailed":
+    case "Follow-Up 1":
+    case "Follow-Up 2":    return shiftDays(base, bump);
+    case "Replied":        return shiftDays(base, 1);
+    case "Call Scheduled": return c.callDate || shiftDays(base, 2);
+    case "Call Done":      return c.callDate ? shiftDays(c.callDate, 1) : today();
+    case "Thank-You Sent": return shiftDays(base, 30);
+    default:               return "";
+  }
+}
+/* Fill in fields that a record predates. Runs once per load, never on render —
+   re-running would undo a date the user deliberately cleared. */
+function migrate(){
+  if (!state || !state.contacts) return;
+  state.contacts.forEach(function(c){
+    if (typeof c.calls !== "number") c.calls = impliedCalls(c);
+    if (!c.nextDate) c.nextDate = defaultNextDate(c);
+  });
+}
 
 /* ---------- routing ---------- */
 var TABS = [["contacts","Contacts"],["firms","Firms"],["compose","Compose"],["settings","Settings"]];
@@ -553,7 +637,7 @@ function viewContacts(v){
   cs.forEach(function(c){
     sent += c.touches || 0;
     if (c.replied) replied++;
-    if (c.callDate || c.stage === "Call Done" || c.stage === "Thank-You Sent" || c.stage === "Advocate") calls++;
+    calls += callCount(c);
     if (c.referral) refs++;
     if (needsAction(c)) act++;
   });
@@ -561,7 +645,7 @@ function viewContacts(v){
   var rate = emailedPeople ? Math.round(replied / emailedPeople * 100) + "%" : "—";
 
   var kp = h("div", {class:"kpis"});
-  [[cs.length,"Contacts"],[sent,"Emails sent"],[rate,"Reply rate"],[calls,"Calls done"],[refs,"Referrals"]].forEach(function(k){
+  [[cs.length,"Contacts"],[sent,"Emails sent"],[rate,"Reply rate"],[calls,"Calls logged"],[refs,"Referrals"]].forEach(function(k){
     kp.appendChild(h("div",{class:"kpi"},[h("div",{class:"n",text:String(k[0])}),h("div",{class:"k",text:k[1]})]));
   });
   kp.appendChild(h("div",{class:"kpi" + (act ? " alert" : "")},[
@@ -645,6 +729,8 @@ function viewContacts(v){
         var na = needsAction(a) ? 0 : 1, nb2 = needsAction(b) ? 0 : 1;
         if (na !== nb2) return na - nb2;
         if (a.priority !== b.priority) return a.priority - b.priority;
+        var oa = daysUntil(a.nextDate), ob = daysUntil(b.nextDate);
+        if (oa !== ob) return (oa === null ? Infinity : oa) - (ob === null ? Infinity : ob);
         var da = staleDays(a), db = staleDays(b);
         return (db === null ? -1 : db) - (da === null ? -1 : da);
       }
@@ -654,7 +740,12 @@ function viewContacts(v){
       else if (k === "conn") r = (a.connection||"").localeCompare(b.connection||"");
       else if (k === "stage") r = STAGE_ORDER.indexOf(a.stage) - STAGE_ORDER.indexOf(b.stage);
       else if (k === "last") r = (Date.parse(a.lastContact||"1970-01-01")||0) - (Date.parse(b.lastContact||"1970-01-01")||0);
-      else if (k === "next") r = (a.nextAction||"").localeCompare(b.nextAction||"");
+      else if (k === "next"){
+        /* soonest first, undated last, so the column sorts by urgency */
+        var na = a.nextDate ? Date.parse(a.nextDate) : Infinity;
+        var nb3 = b.nextDate ? Date.parse(b.nextDate) : Infinity;
+        r = na === nb3 ? (a.nextAction||"").localeCompare(b.nextAction||"") : (na < nb3 ? -1 : 1);
+      }
       return r * dir;
     });
     return rows;
@@ -669,11 +760,18 @@ function viewContacts(v){
       return;
     }
     rows.forEach(function(c){
-      var d = staleDays(c);
+      /* count the days off the contact date itself — staleDays() is deliberately
+         null for stages that can't go stale, and that null was reaching the cell */
+      var d = daysSince(c.lastContact);
       var lastCell;
-      if (!c.lastContact) lastCell = h("span",{class:"fresh",text:"—"});
+      if (d === null) lastCell = h("span",{class:"fresh",text:"—"});
       else if (isStale(c)) lastCell = h("span",{class:"stale",text:d + "d · stale"});
-      else lastCell = h("span",{class:"fresh",text:d === 0 ? "today" : d + "d ago"});
+      else lastCell = h("span",{class:"fresh",text:agoText(d)});
+      var nd = daysUntil(c.nextDate);
+      var nextCell = h("td",{},[
+        document.createTextNode(c.nextAction || "—"),
+        nd === null ? null : h("span",{class:"sub " + (nd <= 0 ? "stale" : "fresh"),text:dueText(nd)})
+      ]);
       var tr = h("tr",{onclick:function(){ openContact(c.id); }},[
         h("td",{},[h("span",{class:"dot d"+c.priority,title:"P"+c.priority})]),
         h("td",{class:"nm"},[document.createTextNode(fullName(c)), h("span",{class:"sub",text:(c.title||"—")})]),
@@ -681,7 +779,7 @@ function viewContacts(v){
         h("td",{},[document.createTextNode(c.connection || "—")]),
         h("td",{},[h("span",{class:"pill "+stageClass(c.stage),text:c.stage})]),
         h("td",{},[lastCell]),
-        h("td",{},[document.createTextNode(c.nextAction || "—")])
+        nextCell
       ]);
       tbody.appendChild(tr);
     });
@@ -774,8 +872,12 @@ function openContact(id){
       logEmail(c); save(); openContact(id); render(); toast("Logged — " + c.stage);
     }}));
     qa.appendChild(h("button",{class:"btn sm",text:"Mark replied",onclick:function(){
-      c.replied = true; c.stage = "Replied"; c.lastContact = today();
-      c.nextAction = "Propose call times"; save(); openContact(id); render();
+      c.lastContact = today(); setStage(c, "Replied");
+      save(); openContact(id); render();
+    }}));
+    qa.appendChild(h("button",{class:"btn sm",text:"Log call today",onclick:function(){
+      logCall(c); save(); openContact(id); render();
+      toast("Call " + callCount(c) + " with " + fullName(c));
     }}));
     qa.appendChild(h("button",{class:"btn sm",text:"Compose →",onclick:function(){
       ui.composeTo = c.id; ui.draft = null; ssSet("cov.to", c.id);
@@ -821,8 +923,10 @@ function openContact(id){
     g3.appendChild(field("Priority", "P"+c.priority, function(v){ c.priority = parseInt(v.replace("P",""),10)||3; save(); render(); }, {type:"select", options:["P1","P2","P3"]}));
     g3.appendChild(field("Last contact", c.lastContact, function(v){ c.lastContact=v; save(); render(); }, {type:"date"}));
     g3.appendChild(field("Next action", c.nextAction, function(v){ c.nextAction=v; save(); render(); }, {wide:true, ph:"Draft cold intro"}));
-    g3.appendChild(field("Next action date", c.nextDate, function(v){ c.nextDate=v; save(); }, {type:"date"}));
-    g3.appendChild(field("Call date", c.callDate, function(v){ c.callDate=v; save(); render(); }, {type:"date"}));
+    g3.appendChild(field("Next action date", c.nextDate, function(v){ c.nextDate=v; save(); render(); }, {type:"date",
+      hint: c.nextDate ? dueText(daysUntil(c.nextDate)) : "No date — this contact shows no countdown"}));
+    g3.appendChild(field("Last call date", c.callDate, function(v){ c.callDate=v; save(); render(); }, {type:"date"}));
+    g3.appendChild(field("Calls", callCount(c), function(v){ c.calls=Math.max(0,parseInt(v,10)||0); save(); render(); }, {type:"number"}));
     g3.appendChild(field("Touches", c.touches, function(v){ c.touches=parseInt(v,10)||0; save(); render(); }, {type:"number"}));
     g3.appendChild(field("Tags", (c.tags||[]).join(", "), function(v){ c.tags = v.split(",").map(function(x){return x.trim();}).filter(Boolean); save(); }, {wide:true, ph:"comma separated"}));
     fs3.appendChild(g3);
@@ -879,11 +983,21 @@ function setStage(c, s){
     c.nextAction = s === "Follow-Up 2" ? "Final bump sent — wait" : "Bump in " + (state.settings.bumpDays||7) + " days";
   }
   if (s === "Replied"){ c.replied = true; c.nextAction = "Propose call times"; }
-  if (s === "Call Done"){ c.callDate = c.callDate || today(); c.nextAction = "Send thank-you"; c.nextDate = today(); }
+  if (s === "Call Scheduled"){ c.nextAction = "Prep questions, hold the slot"; }
+  if (s === "Call Done"){
+    c.callDate = c.callDate || today();
+    c.lastContact = c.callDate;
+    c.replied = true;
+    /* reaching this stage means at least one call happened; further calls are
+       logged explicitly, so re-clicking the rail never inflates the tally */
+    c.calls = Math.max(callCount(c), 1);
+    c.nextAction = "Send thank-you";
+  }
   if (s === "Thank-You Sent"){ c.lastContact = today(); c.nextAction = "Keep warm — check in next month"; }
   if (s === "Advocate"){ c.referral = true; c.nextAction = ""; }
   if (s === "Dead"){ c.nextAction = ""; }
   if (s === "Not Contacted"){ c.nextAction = "Draft cold intro"; }
+  c.nextDate = defaultNextDate(c);
 }
 function logEmail(c){
   c.touches = (c.touches||0) + 1;
@@ -895,6 +1009,7 @@ function logEmail(c){
   else if (c.stage === "Call Done") c.stage = "Thank-You Sent";
   if (c.stage === "Emailed" || c.stage === "Follow-Up 1") c.nextAction = "Bump in " + (state.settings.bumpDays||7) + " days";
   else if (c.stage === "Follow-Up 2") c.nextAction = "Final bump sent — wait";
+  c.nextDate = defaultNextDate(c);
 }
 function firmIdFor(name){
   name = (name||"").trim();
@@ -977,8 +1092,8 @@ function addContactForm(){
       firmId: firmIdFor(vals.firm), title: vals.title, group: vals.group, office: vals.office,
       connection: vals.conn, email: vals.email, emailConf: vals.email ? "pattern" : "unknown",
       year:"", school:"", linkedin:"", stage:"Not Contacted", priority: parseInt(vals.prio,10)||3,
-      lastContact:"", nextAction:"Draft cold intro", nextDate:"", touches:0, replied:false,
-      callDate:"", referral:false, tags:[], notes: vals.note.trim() ? [{d:today(), t:vals.note.trim()}] : []
+      lastContact:"", nextAction:"Draft cold intro", nextDate:today(), touches:0, replied:false,
+      calls:0, callDate:"", referral:false, tags:[], notes: vals.note.trim() ? [{d:today(), t:vals.note.trim()}] : []
     };
     state.contacts.push(c);
     save();
@@ -1013,10 +1128,12 @@ function viewFirms(v){
   var fs = state.firms;
   var tgt = fs.filter(function(f){ return f.target === "Yes"; });
   var covered = tgt.filter(function(f){ return firmContacts(f.id).length > 0; }).length;
-  var replied = tgt.filter(function(f){ return firmContacts(f.id).some(function(c){ return c.replied; }); }).length;
+  var spoken = tgt.filter(function(f){ return firmCalls(f.id) > 0; }).length;
+  var totalCalls = fs.reduce(function(n, f){ return n + firmCalls(f.id); }, 0);
 
   var kp = h("div",{class:"kpis"});
-  [[fs.length,"Firms"],[tgt.length,"Targets"],[covered+"/"+tgt.length,"Targets w/ contacts"],[replied,"Targets w/ replies"]].forEach(function(k){
+  [[fs.length,"Firms"],[tgt.length,"Targets"],[covered+"/"+tgt.length,"Targets w/ contacts"],
+   [spoken+"/"+tgt.length,"Targets w/ calls"],[totalCalls,"Calls logged"]].forEach(function(k){
     kp.appendChild(h("div",{class:"kpi"},[h("div",{class:"n",text:String(k[0])}),h("div",{class:"k",text:k[1]})]));
   });
   var gapN = tgt.length - covered;
@@ -1055,7 +1172,7 @@ function viewFirms(v){
   var wrap = h("div",{class:"tablewrap"});
   var tbl = h("table");
   var thead = h("thead"); var hr = h("tr");
-  ["Firm","Tier","Interest","Difficulty","Target","Contacts","Replied","App status","Deadline"].forEach(function(c){
+  ["Firm","Tier","Interest","Difficulty","Target","Contacts","Calls","App status","Deadline"].forEach(function(c){
     hr.appendChild(h("th",{text:c}));
   });
   thead.appendChild(hr); tbl.appendChild(thead);
@@ -1081,7 +1198,7 @@ function viewFirms(v){
     if (!rows.length){ tb.appendChild(h("tr",{},[h("td",{colspan:"9"},[h("div",{class:"empty",text:"No firms match."})])])); return; }
     rows.forEach(function(f2){
       var cs = firmContacts(f2.id);
-      var rp = cs.filter(function(c){ return c.replied; }).length;
+      var calls = firmCalls(f2.id);
       var gap = f2.target === "Yes" && cs.length === 0;
       var dl = f2.deadline ? -daysSince(f2.deadline) : null;
       var dlCell = !f2.deadline ? h("span",{class:"fresh",text:"—"})
@@ -1094,7 +1211,7 @@ function viewFirms(v){
         h("td",{},[document.createTextNode(f2.difficulty || "—")]),
         h("td",{},[h("span",{class:"pill "+(f2.target==="Yes"?"p-green":f2.target==="Maybe"?"p-amber":"p-grey"),text:f2.target})]),
         h("td",{class:"num"},[gap ? h("span",{class:"stale",text:"0 · gap"}) : document.createTextNode(String(cs.length))]),
-        h("td",{class:"num"},[document.createTextNode(String(rp))]),
+        h("td",{class:"num"},[calls ? h("span",{class:"pill p-green",text:String(calls)}) : h("span",{class:"fresh",text:"—"})]),
         h("td",{},[document.createTextNode(f2.appStatus || "—")]),
         h("td",{},[dlCell])
       ]));
@@ -1145,12 +1262,15 @@ function openFirm(id){
     fs4.appendChild(field("Sector strengths", f.sectors, function(v){ f.sectors=v; save(); }, {type:"textarea", wide:true}));
     body.appendChild(fs4);
 
-    var fs5 = h("div",{class:"fieldset"},[h("div",{class:"lg",text:"Contacts here (" + cs.length + ")"})]);
+    var fcalls = firmCalls(f.id);
+    var fs5 = h("div",{class:"fieldset"},[h("div",{class:"lg",
+      text:"Contacts here (" + cs.length + ")" + (fcalls ? "  ·  " + fcalls + (fcalls === 1 ? " call" : " calls") : "")})]);
     if (!cs.length) fs5.appendChild(h("div",{class:"hint",text:"Nobody yet." + (f.target==="Yes" ? " This is a coverage gap." : "")}));
     cs.forEach(function(c){
       fs5.appendChild(h("div",{class:"gap"},[
         h("span",{class:"dot d"+c.priority}),
         h("span",{class:"fn",text:fullName(c) + (c.title ? "  ·  " + c.title : "")}),
+        callCount(c) ? h("span",{class:"pill p-green",text:callCount(c) + (callCount(c) === 1 ? " call" : " calls")}) : null,
         h("span",{class:"pill "+stageClass(c.stage),text:c.stage}),
         h("button",{class:"btn sm ghost",text:"Open",onclick:function(){ openContact(c.id); }})
       ]));
@@ -1347,11 +1467,11 @@ function viewSettings(v){
       navigator.clipboard.writeText(JSON.stringify(state,null,1)).then(function(){ toast("Copied — paste somewhere safe"); });
     }}),
     h("button",{class:"btn",text:"Copy contacts as CSV",onclick:function(){
-      var head = ["Name","Firm","Title","Group","Office","Connection","Email","Stage","Priority","Last contact","Next action","Touches","Replied","Referral","Notes"];
+      var head = ["Name","Firm","Title","Group","Office","Connection","Email","Stage","Priority","Last contact","Next action","Next action date","Touches","Calls","Replied","Referral","Notes"];
       var lines = [head.join(",")];
       state.contacts.forEach(function(c){
         var row = [fullName(c), firmName(c.firmId), c.title, c.group, c.office, c.connection, c.email,
-          c.stage, "P"+c.priority, c.lastContact, c.nextAction, c.touches, c.replied?"Yes":"No",
+          c.stage, "P"+c.priority, c.lastContact, c.nextAction, c.nextDate, c.touches, callCount(c), c.replied?"Yes":"No",
           c.referral?"Yes":"No", (c.notes||[]).map(function(n){return n.d+": "+n.t;}).join(" | ")];
         lines.push(row.map(function(x){ return '"' + String(x==null?"":x).replace(/"/g,'""') + '"'; }).join(","));
       });
@@ -1380,6 +1500,7 @@ function viewSettings(v){
       if (parsed.settings) state.settings = parsed.settings;
       if (parsed.stages && parsed.stages.length) state.stages = parsed.stages;
       if (parsed.templates && parsed.templates.length) state.templates = parsed.templates;
+      migrate();
       written = {};
       save(); render(); toast("Restored " + parsed.contacts.length + " contacts");
     }})
@@ -1389,6 +1510,7 @@ function viewSettings(v){
 
 /* ---------- boot ---------- */
 $("addbtn").addEventListener("click", addContactForm);
+migrate();
 setFlag("loading…", "on");
 document.addEventListener("keydown", function(e){
   if (e.key === "n" && (e.metaKey || e.ctrlKey)){ e.preventDefault(); addContactForm(); }
