@@ -1,3 +1,6 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
 <title>Coverage</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -227,6 +230,8 @@ td .sub{display:block;font-size:.72rem;color:var(--faint);font-weight:400;
 .d1{background:var(--crimson)} .d2{background:var(--brass)} .d3{background:var(--faint)}
 .stale{color:var(--crimson);font-family:"IBM Plex Mono",monospace;font-size:.74rem}
 .fresh{color:var(--faint);font-family:"IBM Plex Mono",monospace;font-size:.74rem}
+td .sub.stale{color:var(--crimson);font-family:"IBM Plex Mono",monospace}
+td .sub.fresh{color:var(--faint);font-family:"IBM Plex Mono",monospace}
 
 /* ============ drawer ============ */
 .scrim{position:fixed;inset:0;background:rgba(14,21,32,.34);z-index:50;backdrop-filter:blur(1.5px)}
@@ -295,6 +300,26 @@ td .sub{display:block;font-size:.72rem;color:var(--faint);font-weight:400;
 .note .del{opacity:0;background:none;border:0;color:var(--faint);font-size:.9rem;padding:0 4px}
 .note:hover .del{opacity:1}
 .note .del:hover{color:var(--crimson)}
+
+/* ============ interaction log ============ */
+.ixlist{display:flex;flex-direction:column;gap:0}
+.ix{padding:11px 0;border-bottom:1px solid var(--rule-soft);display:flex;gap:12px;align-items:flex-start}
+.ix:last-child{border-bottom:0}
+.ix .meta{flex:0 0 118px;display:flex;flex-direction:column;gap:5px;align-items:flex-start}
+.ix .d{font-family:"IBM Plex Mono",monospace;font-size:.68rem;color:var(--faint);letter-spacing:.03em}
+.ix .t{font-size:.89rem;white-space:pre-wrap;flex:1;min-width:0;word-break:break-word;padding-top:1px}
+.ix .acts{display:flex;gap:2px;opacity:0;flex:0 0 auto}
+.ix:hover .acts{opacity:1}
+.ix .acts button{background:none;border:0;color:var(--faint);font-size:.72rem;padding:2px 5px;
+  font-family:"IBM Plex Mono",monospace;letter-spacing:.06em;text-transform:uppercase;cursor:pointer;border-radius:3px}
+.ix .acts button:hover{background:var(--hover);color:var(--ink)}
+.ix .acts button.del:hover{color:var(--crimson)}
+.ixhead{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+@media (max-width:640px){
+  .ix{flex-wrap:wrap}
+  .ix .meta{flex-direction:row;align-items:center;flex-basis:100%}
+  .ix .acts{opacity:1}
+}
 
 /* ============ stage rail ============ */
 .rail{display:flex;flex-wrap:wrap;gap:5px}
@@ -416,7 +441,26 @@ function daysSince(iso){
   if(!iso) return null;
   var ms = Date.parse(iso + "T00:00:00");
   if (isNaN(ms)) return null;
-  return Math.floor((Date.parse(today() + "T00:00:00") - ms) / 86400000);
+  /* both ends are local midnight, so the gap is a whole number of days give or
+     take an hour of daylight saving — round, never floor, or the clock change
+     swallows a day */
+  return Math.round((Date.parse(today() + "T00:00:00") - ms) / 86400000);
+}
+/* positive = still ahead of us, negative = overdue */
+function daysUntil(iso){ var d = daysSince(iso); return d === null ? null : -d; }
+function agoText(d){
+  if (d === null) return "—";
+  if (d === 0) return "today";
+  if (d === 1) return "yesterday";
+  if (d < 0) return "in " + (-d) + "d";
+  return d + "d ago";
+}
+function dueText(d){
+  if (d === null) return "";
+  if (d === 0) return "due today";
+  if (d < 0) return (-d) + "d overdue";
+  if (d === 1) return "due tomorrow";
+  return "in " + d + "d";
 }
 function uid(p){ return p + Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
 function firm(id){ for(var i=0;i<state.firms.length;i++) if(state.firms[i].id===id) return state.firms[i]; return null; }
@@ -477,7 +521,7 @@ function boot(){
     if (!db){
       lsLoad(); ready = true;
       setFlag("saved locally", "");
-      if (migrateState()) save();
+      if (migrate()) save();
       return;
     }
     return Promise.all([
@@ -492,7 +536,7 @@ function boot(){
         state = assemble(sn[0].data(), sn[1].data(), sn[2].data());
         markWritten();
         ready = true; setFlag("saved");
-        if (migrateState()) save();
+        if (migrate()) save();
       } else {
         /* first run on this artifact — plant the imported spreadsheet */
         ready = true;
@@ -501,7 +545,7 @@ function boot(){
     });
   }).catch(function(){
     db = null; lsLoad(); ready = true; setFlag("saved locally", "");
-    if (migrateState()) save();
+    if (migrate()) save();
   });
 }
 
@@ -564,8 +608,10 @@ function isStale(c){
   var d = staleDays(c);
   return d !== null && d >= (state.settings.bumpDays || 7);
 }
+function isDue(c){ var d = daysUntil(c.nextDate); return d !== null && d <= 0; }
 function needsAction(c){
   if (c.stage === "Dead" || c.stage === "Advocate") return false;
+  if (isDue(c)) return true;
   if (c.stage === "Not Contacted") return c.priority <= 2;
   if (c.stage === "Replied") return true;
   return isStale(c);
@@ -671,9 +717,90 @@ function migrateContact(c){
   if (c.touches !== emailCount(c)){ c.touches = emailCount(c); changed = true; }
   return changed;
 }
-function migrateState(){
+/* ---------- interaction log ---------- */
+var IX_TYPES = ["Call","Text","Email chain","Coffee chat","Meeting","LinkedIn message","Other"];
+var IX_CLASS = {
+  "Call":"p-green", "Text":"p-brass", "Email chain":"p-amber", "Coffee chat":"p-slate",
+  "Meeting":"p-slate", "LinkedIn message":"p-grey", "Other":"p-grey"
+};
+function ixClass(t){ return IX_CLASS[t] || "p-grey"; }
+/* newest first; ISO dates sort lexicographically, ties break on when it was logged */
+function interactions(c){
+  return (c.interactions || []).slice().sort(function(a,b){
+    var r = String(b.date||"").localeCompare(String(a.date||""));
+    return r !== 0 ? r : (b.logged||0) - (a.logged||0);
+  });
+}
+function ixHaystack(c){
+  return (c.interactions || []).map(function(x){ return (x.type||"") + " " + (x.text||""); }).join(" ");
+}
+
+/* ---------- calls ---------- */
+/* Calls are counted in two places and summed, so writing one up in the log and
+   keeping a bare tally never count the same call twice:
+     - the log holds every call with a date and what was said,
+     - c.calls holds the ones with no entry behind them — anything that happened
+       before the log existed, plus manual corrections. */
+function loggedCalls(c){
+  return (c.interactions || []).filter(function(x){ return x.type === "Call"; }).length;
+}
+/* Records written before calls were counted only carry a call date and a stage,
+   so read one call out of those rather than showing them as zero. */
+function impliedCalls(c){
+  return (c.callDate || c.stage === "Call Done" || c.stage === "Thank-You Sent" || c.stage === "Advocate") ? 1 : 0;
+}
+function bareCalls(c){
+  return typeof c.calls === "number" ? c.calls : impliedCalls(c);
+}
+function callCount(c){ return bareCalls(c) + loggedCalls(c); }
+function firmCalls(fid){
+  return firmContacts(fid).reduce(function(n, c){ return n + callCount(c); }, 0);
+}
+/* Where a call lands the contact once it is recorded, however it was recorded.
+   A backfilled call is older than what is already on record, so nothing here is
+   allowed to move a date backwards. */
+function applyCall(c, date){
+  var d = date || today();
+  var prevTouch = c.lastContact;
+  if (!c.callDate || d > c.callDate) c.callDate = d;
+  c.replied = true;
+  /* someone already thanked or advocating stays where they are — a catch-up
+     call shouldn't drag them back down the funnel */
+  if (c.stage !== "Thank-You Sent" && c.stage !== "Advocate") setStage(c, "Call Done");
+  c.lastContact = (prevTouch && prevTouch > d) ? prevTouch : d;
+  c.nextDate = defaultNextDate(c);
+}
+
+/* ---------- the days system ---------- */
+/* Every live stage owes a next action on a date; without one the Next action
+   column has nothing to count down to. */
+function defaultNextDate(c){
+  var bump = state.settings.bumpDays || 7;
+  var base = c.lastContact || today();
+  switch (c.stage){
+    case "Not Contacted":  return today();
+    case "Emailed":
+    case "Follow-Up 1":
+    case "Follow-Up 2":    return shiftDate(base, bump);
+    case "Replied":        return shiftDate(base, 1);
+    case "Call Scheduled": return c.callDate || shiftDate(base, 2);
+    case "Call Done":      return c.callDate ? shiftDate(c.callDate, 1) : today();
+    case "Thank-You Sent": return shiftDate(base, 30);
+    default:               return "";
+  }
+}
+/* Fill in fields that a record predates. Runs once per load, never on render —
+   re-running would undo a date the user deliberately cleared. */
+function migrate(){
+  if (!state || !state.contacts) return false;
   var changed = false;
-  (state.contacts || []).forEach(function(c){ if (migrateContact(c)) changed = true; });
+  state.contacts.forEach(function(c){
+    if (!c.interactions) c.interactions = [];
+    /* the bare tally only ever inherits calls the log does not already hold */
+    if (typeof c.calls !== "number") c.calls = Math.max(0, impliedCalls(c) - loggedCalls(c));
+    if (!c.nextDate) c.nextDate = defaultNextDate(c);
+    if (migrateContact(c)) changed = true;
+  });
   return changed;
 }
 
@@ -783,7 +910,7 @@ function viewContacts(v){
     initialCount += emailsOfType(c, "initial").length;
     fupCount += followUpCount(c);
     if (wasEmailed(c)){ emailedPeople++; if (hasReplied(c)) repliedPeople++; }
-    if (c.callDate || c.stage === "Call Done" || c.stage === "Thank-You Sent" || c.stage === "Advocate") calls++;
+    calls += callCount(c);
     if (c.referral) refs++;
     if (needsAction(c)) act++;
   });
@@ -794,7 +921,7 @@ function viewContacts(v){
   [[cs.length, "Contacts", emailedPeople + " emailed"],
    [sent, "Emails sent", initialCount + " initial · " + fupCount + " follow-up" + (fupCount === 1 ? "" : "s")],
    [rate, "Reply rate", repliedPeople + " of " + emailedPeople + " emailed"],
-   [calls, "Calls done", ""],
+   [calls, "Calls logged", ""],
    [refs, "Referrals", ""]].forEach(function(k){
     kp.appendChild(h("div",{class:"kpi"},[
       h("div",{class:"n",text:String(k[0])}),
@@ -923,7 +1050,8 @@ function viewContacts(v){
       /* a dead contact you emailed still counts toward what you sent that week */
       if (!ui.stage && !ui.q && !r && c.stage === "Dead") return false;
       if (s){
-        var hay = (fullName(c) + " " + firmName(c.firmId) + " " + c.group + " " + c.connection + " " + c.title + " " + (c.tags||[]).join(" ")).toLowerCase();
+        var hay = (fullName(c) + " " + firmName(c.firmId) + " " + c.group + " " + c.connection + " " + c.title + " " +
+          (c.tags||[]).join(" ") + " " + ixHaystack(c)).toLowerCase();
         if (hay.indexOf(s) < 0) return false;
       }
       return true;
@@ -938,6 +1066,8 @@ function viewContacts(v){
         var na = needsAction(a) ? 0 : 1, nb2 = needsAction(b) ? 0 : 1;
         if (na !== nb2) return na - nb2;
         if (a.priority !== b.priority) return a.priority - b.priority;
+        var oa = daysUntil(a.nextDate), ob = daysUntil(b.nextDate);
+        if (oa !== ob) return (oa === null ? Infinity : oa) - (ob === null ? Infinity : ob);
         var da = staleDays(a), sb = staleDays(b);
         return (sb === null ? -1 : sb) - (da === null ? -1 : da);
       }
@@ -948,7 +1078,12 @@ function viewContacts(v){
       else if (k === "stage") r = STAGE_ORDER.indexOf(a.stage) - STAGE_ORDER.indexOf(b.stage);
       else if (k === "sent") r = (initialDate(a) || "9999-12-31").localeCompare(initialDate(b) || "9999-12-31");
       else if (k === "last") r = (Date.parse(a.lastContact||"1970-01-01")||0) - (Date.parse(b.lastContact||"1970-01-01")||0);
-      else if (k === "next") r = (a.nextAction||"").localeCompare(b.nextAction||"");
+      else if (k === "next"){
+        /* soonest first, undated last, so the column sorts by urgency */
+        var na = a.nextDate ? Date.parse(a.nextDate) : Infinity;
+        var nb3 = b.nextDate ? Date.parse(b.nextDate) : Infinity;
+        r = na === nb3 ? (a.nextAction||"").localeCompare(b.nextAction||"") : (na < nb3 ? -1 : 1);
+      }
       return r * dir;
     });
     return rows;
@@ -1036,12 +1171,21 @@ function viewContacts(v){
       return;
     }
     rows.forEach(function(c){
-      /* days since the last touch, not staleDays() — that is null off-pipeline and rendered "nulld ago" */
+      /* count the days off the contact date itself — staleDays() is deliberately
+         null for stages that can't go stale, and that null was reaching the cell */
       var d = daysSince(c.lastContact);
       var lastCell;
-      if (!c.lastContact || d === null) lastCell = h("span",{class:"fresh",text:"—"});
+      if (d === null) lastCell = h("span",{class:"fresh",text:"—"});
       else if (isStale(c)) lastCell = h("span",{class:"stale",text:d + "d · stale"});
-      else lastCell = h("span",{class:"fresh",text:d === 0 ? "today" : d + "d ago"});
+      else lastCell = h("span",{class:"fresh",text:agoText(d)});
+      var ixn = (c.interactions||[]).length;
+      var lastCol = [lastCell];
+      if (ixn) lastCol.push(h("span",{class:"sub",text: ixn + (ixn === 1 ? " interaction" : " interactions")}));
+      var nd = daysUntil(c.nextDate);
+      var nextCell = h("td",{},[
+        document.createTextNode(c.nextAction || "—"),
+        nd === null ? null : h("span",{class:"sub " + (nd <= 0 ? "stale" : "fresh"),text:dueText(nd)})
+      ]);
 
       var ie = initialEmail(c), n = emailCount(c), fu = followUpCount(c);
       var sentCell = h("td",{});
@@ -1060,8 +1204,8 @@ function viewContacts(v){
         h("td",{},[document.createTextNode(c.connection || "—")]),
         h("td",{},[h("span",{class:"pill "+stageClass(c.stage),text:c.stage})]),
         sentCell,
-        h("td",{},[lastCell]),
-        h("td",{},[document.createTextNode(c.nextAction || "—")])
+        h("td",{},lastCol),
+        nextCell
       ]);
       tbody.appendChild(tr2);
     });
@@ -1091,10 +1235,20 @@ function drawer(title, sub, bodyBuild, footBuild){
   layer.appendChild(scrim); layer.appendChild(d);
   armEsc();
 }
+var escAction = closeLayer;
 function escOnce(e){
-  if (e.key === "Escape"){ closeLayer(); document.removeEventListener("keydown", escOnce); }
+  if (e.key === "Escape"){
+    var act = escAction; escAction = closeLayer;
+    document.removeEventListener("keydown", escOnce);
+    act();
+  }
 }
-function armEsc(){ document.removeEventListener("keydown", escOnce); document.addEventListener("keydown", escOnce); }
+/* pass a handler when Escape should step back somewhere rather than close everything */
+function armEsc(onEsc){
+  escAction = onEsc || closeLayer;
+  document.removeEventListener("keydown", escOnce);
+  document.addEventListener("keydown", escOnce);
+}
 
 function field(label, val, onchange, opts){
   opts = opts || {};
@@ -1163,14 +1317,76 @@ function openContact(id){
         save(); openContact(id); render(); toast("Logged — " + c.stage);
       }}));
     qa.appendChild(h("button",{class:"btn sm",text:"Mark replied",onclick:function(){
-      c.replied = true; c.stage = "Replied"; c.lastContact = today();
-      c.nextAction = "Propose call times"; save(); openContact(id); render();
+      c.lastContact = today(); setStage(c, "Replied");
+      save(); openContact(id); render();
+    }}));
+    qa.appendChild(h("button",{class:"btn sm",text:"Log call today",onclick:function(){
+      logInteractionForm(c.id, null, "Call");
     }}));
     qa.appendChild(h("button",{class:"btn sm",text:"Compose →",onclick:function(){
       ui.composeTo = c.id; ui.draft = null; ssSet("cov.to", c.id);
       closeLayer(); go("compose");
     }}));
     body.appendChild(qa);
+
+    /* interaction log */
+    var fsx = h("div",{id:"ix-anchor",class:"fieldset"});
+    var ixCount = h("span",{class:"count"});
+    fsx.appendChild(h("div",{class:"ixhead"},[
+      h("div",{class:"lg",text:"Interaction log"}),
+      ixCount,
+      h("span",{class:"spacer"}),
+      h("button",{class:"btn sm primary",text:"+ Log interaction",onclick:function(){
+        logInteractionForm(c.id, null);
+      }})
+    ]));
+    var ixList = h("div",{class:"ixlist"});
+    var ixAll = false;
+    function drawIx(){
+      clear(ixList);
+      var log = interactions(c);
+      ixCount.textContent = log.length ? log.length + " logged" : "";
+      if (!log.length){
+        ixList.appendChild(h("div",{class:"hint",
+          text:"Nothing logged yet \u2014 record a call, a text, or an email chain and it stays on their record."}));
+        return;
+      }
+      var shown = ixAll ? log : log.slice(0, 5);
+      shown.forEach(function(x){
+        ixList.appendChild(h("div",{class:"ix"},[
+          h("div",{class:"meta"},[
+            h("span",{class:"pill " + ixClass(x.type), text: x.type || "Other"}),
+            h("span",{class:"d", text: x.date || "\u2014"})
+          ]),
+          h("div",{class:"t", text: x.text || ""}),
+          h("div",{class:"acts"},[
+            h("button",{title:"Edit this entry",text:"Edit",onclick:function(){
+              logInteractionForm(c.id, x);
+            }}),
+            h("button",{class:"del",title:"Delete this entry",text:"Delete",onclick:function(){
+              if (!confirm("Delete this " + (x.type||"interaction").toLowerCase() + " from " + (x.date||"the log") + "?")) return;
+              var wasCall = x.type === "Call";
+              c.interactions = (c.interactions||[]).filter(function(y){ return y !== x; });
+              save();
+              /* dropping a call changes the counts printed elsewhere in the drawer,
+                 so redraw the whole thing rather than just this list */
+              if (wasCall){ openContact(c.id); } else { drawIx(); }
+              render();
+            }})
+          ])
+        ]));
+      });
+      if (log.length > 5){
+        ixList.appendChild(h("div",{class:"filters",style:"margin:10px 0 0"},[
+          h("button",{class:"btn sm ghost",
+            text: ixAll ? "Show latest 5" : "Show all " + log.length,
+            onclick:function(){ ixAll = !ixAll; drawIx(); }})
+        ]));
+      }
+    }
+    drawIx();
+    fsx.appendChild(ixList);
+    body.appendChild(fsx);
 
     /* identity */
     var fs1 = h("div",{class:"fieldset"},[h("div",{class:"lg",text:"Who"})]);
@@ -1210,8 +1426,13 @@ function openContact(id){
     g3.appendChild(field("Priority", "P"+c.priority, function(v){ c.priority = parseInt(v.replace("P",""),10)||3; save(); render(); }, {type:"select", options:["P1","P2","P3"]}));
     g3.appendChild(field("Last contact", c.lastContact, function(v){ c.lastContact=v; save(); render(); }, {type:"date"}));
     g3.appendChild(field("Next action", c.nextAction, function(v){ c.nextAction=v; save(); render(); }, {wide:true, ph:"Draft cold intro"}));
-    g3.appendChild(field("Next action date", c.nextDate, function(v){ c.nextDate=v; save(); }, {type:"date"}));
-    g3.appendChild(field("Call date", c.callDate, function(v){ c.callDate=v; save(); render(); }, {type:"date"}));
+    g3.appendChild(field("Next action date", c.nextDate, function(v){ c.nextDate=v; save(); render(); }, {type:"date",
+      hint: c.nextDate ? dueText(daysUntil(c.nextDate)) : "No date — this contact shows no countdown"}));
+    g3.appendChild(field("Last call date", c.callDate, function(v){ c.callDate=v; save(); render(); }, {type:"date"}));
+    var lg = loggedCalls(c);
+    g3.appendChild(field("Calls not in the log", bareCalls(c), function(v){ c.calls=Math.max(0,parseInt(v,10)||0); save(); render(); },
+      {type:"number", hint: lg ? lg + (lg === 1 ? " call" : " calls") + " logged below · " + callCount(c) + " in total"
+                               : "Calls from before the log, or ones you would rather not write up"}));
     g3.appendChild(field("Tags", (c.tags||[]).join(", "), function(v){ c.tags = v.split(",").map(function(x){return x.trim();}).filter(Boolean); save(); }, {wide:true, ph:"comma separated"}));
     fs3.appendChild(g3);
     var checks = h("div",{class:"fgrid"});
@@ -1319,11 +1540,20 @@ function setStage(c, s){
   }
   if (REPLIED_STAGES[s]) c.replied = true;
   if (s === "Replied"){ c.nextAction = "Propose call times"; }
-  if (s === "Call Done"){ c.callDate = c.callDate || today(); c.nextAction = "Send thank-you"; c.nextDate = today(); }
+  if (s === "Call Scheduled"){ c.nextAction = "Prep questions, hold the slot"; }
+  if (s === "Call Done"){
+    c.callDate = c.callDate || today();
+    c.lastContact = c.callDate;
+    /* reaching this stage means at least one call happened; if neither the log
+       nor the tally holds one yet, record it, so re-clicking never inflates */
+    if (callCount(c) === 0) c.calls = 1; else c.calls = bareCalls(c);
+    c.nextAction = "Send thank-you";
+  }
   if (s === "Thank-You Sent"){ c.lastContact = today(); c.nextAction = "Keep warm — check in next month"; }
   if (s === "Advocate"){ c.referral = true; c.nextAction = ""; }
   if (s === "Dead"){ c.nextAction = ""; }
   if (s === "Not Contacted"){ c.nextAction = "Draft cold intro"; }
+  c.nextDate = defaultNextDate(c);
 }
 function logEmail(c, opts){
   opts = opts || {};
@@ -1335,6 +1565,7 @@ function logEmail(c, opts){
   else if (c.stage === "Call Done") c.stage = "Thank-You Sent";
   if (c.stage === "Emailed" || c.stage === "Follow-Up 1") c.nextAction = "Bump in " + (state.settings.bumpDays||7) + " days";
   else if (c.stage === "Follow-Up 2") c.nextAction = "Final bump sent — wait";
+  c.nextDate = defaultNextDate(c);
 }
 function firmIdFor(name){
   name = (name||"").trim();
@@ -1358,6 +1589,94 @@ function guessEmail(c){
     .replace(/first/g, fi).replace(/last/g, la)
     .replace(/f\b/g, fi.charAt(0)).replace(/l\b/g, la.charAt(0));
   return local + "@" + dom;
+}
+
+/* ================= LOG AN INTERACTION ================= */
+/* Opens over the contact drawer; closing either way returns to that contact.
+   `preset` starts a new entry on a given type — the "Log call today" button. */
+function logInteractionForm(cid, existing, preset){
+  var c = contact(cid); if (!c) return;
+  var editing = !!existing;
+  var vals = {
+    date: editing ? (existing.date || today()) : today(),
+    type: editing ? (existing.type || IX_TYPES[0]) : (preset || IX_TYPES[0]),
+    text: editing ? (existing.text || "") : "",
+    touch: !editing
+  };
+
+  var layer = $("layer"); clear(layer);
+  function back(){ closeLayer(); openContact(cid); }
+  var scrim = h("div",{class:"scrim",onclick:back});
+  var m = h("div",{class:"modal",role:"dialog","aria-modal":"true"});
+  m.appendChild(h("div",{class:"modal-head"},[
+    h("h2",{text: editing ? "Edit interaction" : "Log an interaction"}),
+    h("span",{class:"count",text: fullName(c)}),
+    h("span",{class:"spacer"}),
+    h("button",{class:"xbtn",onclick:back,"aria-label":"Close",html:"&times;"})
+  ]));
+
+  var body = h("div",{class:"modal-body"});
+  var g = h("div",{class:"fgrid"});
+
+  var dateIn = h("input",{type:"date",value:vals.date});
+  dateIn.addEventListener("change", function(){ vals.date = dateIn.value; });
+  g.appendChild(h("div",{class:"f"},[h("label",{text:"Date"}), dateIn]));
+
+  var typeIn = h("select");
+  IX_TYPES.forEach(function(t){
+    typeIn.appendChild(h("option",{value:t,text:t,selected:vals.type===t?"selected":null}));
+  });
+  typeIn.addEventListener("change", function(){ vals.type = typeIn.value; });
+  g.appendChild(h("div",{class:"f"},[h("label",{text:"Type"}), typeIn]));
+  body.appendChild(g);
+
+  var ta = h("textarea",{placeholder:"What did you talk about? What did they say, what did you promise, what to ask next time\u2026"});
+  ta.style.minHeight = "130px";
+  ta.value = vals.text;
+  ta.addEventListener("input", function(){ vals.text = ta.value; });
+  body.appendChild(h("div",{class:"f wide"},[h("label",{text:"What happened"}), ta]));
+
+  var cb = h("input",{type:"checkbox"});
+  cb.checked = vals.touch;
+  cb.addEventListener("change", function(){ vals.touch = cb.checked; });
+  body.appendChild(h("label",{class:"checkline"},[cb, document.createTextNode("Move this contact\u2019s last touch to this date")]));
+  body.appendChild(h("div",{class:"hint",style:"color:var(--faint)",
+    text:"Last touch drives the stale flag and the needs-action count \u2014 leave this on unless you are backfilling an old conversation."}));
+  m.appendChild(body);
+
+  function commit(){
+    var t = vals.text.trim();
+    if (!t){ ta.focus(); toast("Say what happened first"); return false; }
+    if (!vals.date){ dateIn.focus(); toast("Pick a date"); return false; }
+    var wasCall = editing && existing.type === "Call";
+    if (editing){
+      existing.date = vals.date; existing.type = vals.type; existing.text = t;
+    } else {
+      c.interactions = c.interactions || [];
+      c.interactions.push({id: uid("ix"), date: vals.date, type: vals.type, text: t, logged: Date.now()});
+    }
+    if (vals.touch && (!c.lastContact || vals.date > c.lastContact)) c.lastContact = vals.date;
+    /* a newly logged call carries the contact to Call Done and sets the dates,
+       exactly as the stage rail would — an edit of an existing call does not
+       re-run that, or correcting a typo would drag the stage backwards */
+    if (vals.type === "Call" && !wasCall) applyCall(c, vals.date);
+    save();
+    return true;
+  }
+
+  var foot = h("div",{class:"modal-foot"});
+  foot.appendChild(h("button",{class:"btn primary",text: editing ? "Save changes" : "Log it",onclick:function(){
+    if (!commit()) return;
+    closeLayer(); openContact(cid); render();
+    toast(editing ? "Interaction updated" : vals.type + " logged \u2014 " + fullName(c));
+  }}));
+  foot.appendChild(h("span",{class:"spacer"}));
+  foot.appendChild(h("button",{class:"btn ghost",text:"Cancel",onclick:back}));
+  m.appendChild(foot);
+
+  layer.appendChild(scrim); layer.appendChild(m);
+  armEsc(back);
+  setTimeout(function(){ ta.focus(); }, 30);
 }
 
 /* ================= ADD CONTACT ================= */
@@ -1417,8 +1736,9 @@ function addContactForm(){
       firmId: firmIdFor(vals.firm), title: vals.title, group: vals.group, office: vals.office,
       connection: vals.conn, email: vals.email, emailConf: vals.email ? "pattern" : "unknown",
       year:"", school:"", linkedin:"", stage:"Not Contacted", priority: parseInt(vals.prio,10)||3,
-      lastContact:"", nextAction:"Draft cold intro", nextDate:"", touches:0, replied:false, emails:[],
-      callDate:"", referral:false, tags:[], notes: vals.note.trim() ? [{d:today(), t:vals.note.trim()}] : []
+      lastContact:"", nextAction:"Draft cold intro", nextDate:today(), touches:0, replied:false, emails:[],
+      calls:0, callDate:"", referral:false, tags:[], notes: vals.note.trim() ? [{d:today(), t:vals.note.trim()}] : [],
+      interactions: []
     };
     state.contacts.push(c);
     save();
@@ -1453,10 +1773,12 @@ function viewFirms(v){
   var fs = state.firms;
   var tgt = fs.filter(function(f){ return f.target === "Yes"; });
   var covered = tgt.filter(function(f){ return firmContacts(f.id).length > 0; }).length;
-  var replied = tgt.filter(function(f){ return firmContacts(f.id).some(hasReplied); }).length;
+  var spoken = tgt.filter(function(f){ return firmCalls(f.id) > 0; }).length;
+  var totalCalls = fs.reduce(function(n, f){ return n + firmCalls(f.id); }, 0);
 
   var kp = h("div",{class:"kpis"});
-  [[fs.length,"Firms"],[tgt.length,"Targets"],[covered+"/"+tgt.length,"Targets w/ contacts"],[replied,"Targets w/ replies"]].forEach(function(k){
+  [[fs.length,"Firms"],[tgt.length,"Targets"],[covered+"/"+tgt.length,"Targets w/ contacts"],
+   [spoken+"/"+tgt.length,"Targets w/ calls"],[totalCalls,"Calls logged"]].forEach(function(k){
     kp.appendChild(h("div",{class:"kpi"},[h("div",{class:"n",text:String(k[0])}),h("div",{class:"k",text:k[1]})]));
   });
   var gapN = tgt.length - covered;
@@ -1495,7 +1817,7 @@ function viewFirms(v){
   var wrap = h("div",{class:"tablewrap"});
   var tbl = h("table");
   var thead = h("thead"); var hr = h("tr");
-  ["Firm","Tier","Interest","Difficulty","Target","Contacts","Replied","App status","Deadline"].forEach(function(c){
+  ["Firm","Tier","Interest","Difficulty","Target","Contacts","Calls","App status","Deadline"].forEach(function(c){
     hr.appendChild(h("th",{text:c}));
   });
   thead.appendChild(hr); tbl.appendChild(thead);
@@ -1521,7 +1843,7 @@ function viewFirms(v){
     if (!rows.length){ tb.appendChild(h("tr",{},[h("td",{colspan:"9"},[h("div",{class:"empty",text:"No firms match."})])])); return; }
     rows.forEach(function(f2){
       var cs = firmContacts(f2.id);
-      var rp = cs.filter(hasReplied).length;
+      var calls = firmCalls(f2.id);
       var gap = f2.target === "Yes" && cs.length === 0;
       var dl = f2.deadline ? -daysSince(f2.deadline) : null;
       var dlCell = !f2.deadline ? h("span",{class:"fresh",text:"—"})
@@ -1534,7 +1856,7 @@ function viewFirms(v){
         h("td",{},[document.createTextNode(f2.difficulty || "—")]),
         h("td",{},[h("span",{class:"pill "+(f2.target==="Yes"?"p-green":f2.target==="Maybe"?"p-amber":"p-grey"),text:f2.target})]),
         h("td",{class:"num"},[gap ? h("span",{class:"stale",text:"0 · gap"}) : document.createTextNode(String(cs.length))]),
-        h("td",{class:"num"},[document.createTextNode(String(rp))]),
+        h("td",{class:"num"},[calls ? h("span",{class:"pill p-green",text:String(calls)}) : h("span",{class:"fresh",text:"—"})]),
         h("td",{},[document.createTextNode(f2.appStatus || "—")]),
         h("td",{},[dlCell])
       ]));
@@ -1585,12 +1907,15 @@ function openFirm(id){
     fs4.appendChild(field("Sector strengths", f.sectors, function(v){ f.sectors=v; save(); }, {type:"textarea", wide:true}));
     body.appendChild(fs4);
 
-    var fs5 = h("div",{class:"fieldset"},[h("div",{class:"lg",text:"Contacts here (" + cs.length + ")"})]);
+    var fcalls = firmCalls(f.id);
+    var fs5 = h("div",{class:"fieldset"},[h("div",{class:"lg",
+      text:"Contacts here (" + cs.length + ")" + (fcalls ? "  ·  " + fcalls + (fcalls === 1 ? " call" : " calls") : "")})]);
     if (!cs.length) fs5.appendChild(h("div",{class:"hint",text:"Nobody yet." + (f.target==="Yes" ? " This is a coverage gap." : "")}));
     cs.forEach(function(c){
       fs5.appendChild(h("div",{class:"gap"},[
         h("span",{class:"dot d"+c.priority}),
         h("span",{class:"fn",text:fullName(c) + (c.title ? "  ·  " + c.title : "")}),
+        callCount(c) ? h("span",{class:"pill p-green",text:callCount(c) + (callCount(c) === 1 ? " call" : " calls")}) : null,
         h("span",{class:"pill "+stageClass(c.stage),text:c.stage}),
         h("button",{class:"btn sm ghost",text:"Open",onclick:function(){ openContact(c.id); }})
       ]));
@@ -1788,13 +2113,15 @@ function viewSettings(v){
     }}),
     h("button",{class:"btn",text:"Copy contacts as CSV",onclick:function(){
       var head = ["Name","Firm","Title","Group","Office","Connection","Email","Stage","Priority",
-        "Initial sent","Last email","Last contact","Next action","Emails sent","Follow-ups","Replied","Referral","Notes"];
+        "Initial sent","Last email","Last contact","Next action","Next action date",
+        "Emails sent","Follow-ups","Calls","Replied","Referral","Interactions","Notes"];
       var lines = [head.join(",")];
       state.contacts.forEach(function(c){
         var row = [fullName(c), firmName(c.firmId), c.title, c.group, c.office, c.connection, c.email,
-          c.stage, "P"+c.priority, initialDate(c), lastEmailDate(c), c.lastContact, c.nextAction,
-          emailCount(c), followUpCount(c), hasReplied(c)?"Yes":"No",
-          c.referral?"Yes":"No", (c.notes||[]).map(function(n){return n.d+": "+n.t;}).join(" | ")];
+          c.stage, "P"+c.priority, initialDate(c), lastEmailDate(c), c.lastContact, c.nextAction, c.nextDate,
+          emailCount(c), followUpCount(c), callCount(c), hasReplied(c)?"Yes":"No", c.referral?"Yes":"No",
+          interactions(c).map(function(x){ return x.date+" "+x.type+": "+x.text; }).join(" | "),
+          (c.notes||[]).map(function(n){return n.d+": "+n.t;}).join(" | ")];
         lines.push(row.map(function(x){ return '"' + String(x==null?"":x).replace(/"/g,'""') + '"'; }).join(","));
       });
       navigator.clipboard.writeText(lines.join("\n")).then(function(){ toast("CSV copied"); });
@@ -1839,7 +2166,7 @@ function viewSettings(v){
       if (parsed.settings) state.settings = parsed.settings;
       if (parsed.stages && parsed.stages.length) state.stages = parsed.stages;
       if (parsed.templates && parsed.templates.length) state.templates = parsed.templates;
-      migrateState();
+      migrate();
       written = {};
       save(); render(); toast("Restored " + parsed.contacts.length + " contacts");
     }})
@@ -1849,8 +2176,8 @@ function viewSettings(v){
 
 /* ---------- boot ---------- */
 $("addbtn").addEventListener("click", addContactForm);
+migrate();
 setFlag("loading…", "on");
-migrateState();
 document.addEventListener("keydown", function(e){
   if (e.key === "n" && (e.metaKey || e.ctrlKey)){ e.preventDefault(); addContactForm(); }
 });

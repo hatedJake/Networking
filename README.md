@@ -22,6 +22,10 @@ becomes that many dated entries, the most recent carrying the known last-contact
 and the earlier ones spaced back by the bump interval and marked with a `~` as
 estimated, so they can be corrected in the drawer.
 
+Calls, coffee chats and texts are a separate **interaction log** on the same
+contact — what was said, rather than what was sent — and the Firms tab counts the
+calls each firm has given you.
+
 ## Desktop app (macOS)
 
 `electron/main.js` wraps that same `index.html` in an Electron window so it can live
