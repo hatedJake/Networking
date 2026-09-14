@@ -3,6 +3,25 @@
 A local-first networking CRM. The whole app is a single `index.html` — open it in a
 browser and it works, with your data kept in the browser's local storage.
 
+## Tracking what you sent, and when
+
+Every email is recorded in a contact's **outreach log** as a dated entry typed either
+*initial* or *follow-up* — written automatically when you hit “Log as sent” in Compose,
+log an email from the contact drawer, or move a contact along the stage rail, and
+editable by hand in the drawer if you need to correct a date.
+
+The Contacts tab filters on that log: pick a period (today, this week, last 30 days, a
+custom range…) and whether to count initial outreach, follow-ups, or both. The panel
+that appears breaks the period down by day or by week — how many went out each day,
+the per-day average, the busiest day — and the table narrows to the people you emailed
+in that window. It is deliberately separate from **Last touch**: the *Initial sent*
+column is the date the first email went out, not the date anything last happened.
+
+Records saved before the log existed are converted on first open: the touch count
+becomes that many dated entries, the most recent carrying the known last-contact date
+and the earlier ones spaced back by the bump interval and marked with a `~` as
+estimated, so they can be corrected in the drawer.
+
 ## Desktop app (macOS)
 
 `electron/main.js` wraps that same `index.html` in an Electron window so it can live

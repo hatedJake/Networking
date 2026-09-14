@@ -118,6 +118,8 @@ nav.tabs button[aria-current="true"]{color:var(--ink);border-bottom-color:var(--
   letter-spacing:-.02em;font-variant-numeric:tabular-nums;line-height:1.15}
 .kpi .k{font-family:"IBM Plex Mono",monospace;font-size:.6rem;letter-spacing:.14em;
   text-transform:uppercase;color:var(--faint);margin-top:4px}
+.kpi .s{font-family:"IBM Plex Mono",monospace;font-size:.62rem;color:var(--faint);
+  opacity:.8;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .kpi.alert .n{color:var(--crimson)}
 
 /* ============ filter bar ============ */
@@ -135,6 +137,57 @@ nav.tabs button[aria-current="true"]{color:var(--ink);border-bottom-color:var(--
 .spacer{flex:1}
 .count{font-family:"IBM Plex Mono",monospace;font-size:.72rem;color:var(--faint);
   letter-spacing:.08em;white-space:nowrap}
+
+/* ============ outreach period panel ============ */
+.sentbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:-4px 0 14px}
+.sentbar input[type=date],.sentbar select{
+  background:var(--card);border:1px solid var(--rule);border-radius:4px;
+  padding:6px 10px;font-size:.86rem;
+}
+.sentbar .lbl{font-family:"IBM Plex Mono",monospace;font-size:.62rem;letter-spacing:.13em;
+  text-transform:uppercase;color:var(--faint)}
+.sentpanel{
+  border:1px solid var(--rule);border-radius:5px;background:var(--card);
+  box-shadow:var(--shadow);padding:14px 16px;margin-bottom:16px;
+  display:flex;flex-direction:column;gap:12px;
+}
+.sentpanel .ph{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.sentpanel .ph .t{font-family:"IBM Plex Mono",monospace;font-size:.62rem;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--brass)}
+.sentpanel .ph .r{font-family:"IBM Plex Mono",monospace;font-size:.72rem;color:var(--faint);letter-spacing:.04em}
+.sentsum{display:flex;gap:22px;flex-wrap:wrap}
+.sentsum .s .n{font-family:"IBM Plex Mono",monospace;font-size:1.2rem;font-weight:600;
+  letter-spacing:-.02em;font-variant-numeric:tabular-nums;line-height:1.2}
+.sentsum .s .k{font-family:"IBM Plex Mono",monospace;font-size:.58rem;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--faint);margin-top:2px}
+.brk{display:flex;flex-direction:column;gap:0;max-height:260px;overflow-y:auto}
+.brk-row{display:flex;align-items:center;gap:10px;padding:4px 0;border-bottom:1px solid var(--rule-soft)}
+.brk-row:last-child{border-bottom:0}
+.brk-row .d{font-family:"IBM Plex Mono",monospace;font-size:.72rem;color:var(--muted);
+  flex:0 0 118px;letter-spacing:.02em;white-space:nowrap}
+.brk-row .track{flex:1;min-width:40px;height:9px;background:var(--sunk);border-radius:2px;overflow:hidden}
+.brk-row .fillbar{display:block;height:100%;background:var(--brass);border-radius:2px}
+.brk-row.zero .fillbar{background:var(--rule)}
+.brk-row .n{font-family:"IBM Plex Mono",monospace;font-size:.74rem;flex:0 0 42px;text-align:right;
+  font-variant-numeric:tabular-nums;color:var(--ink)}
+.brk-row.zero .n{color:var(--faint)}
+.brk-row .sub{font-family:"IBM Plex Mono",monospace;font-size:.66rem;color:var(--faint);
+  flex:0 0 96px;text-align:right;white-space:nowrap}
+
+/* ============ outreach log ============ */
+.elog{display:flex;flex-direction:column;gap:0}
+.erow{display:flex;gap:8px;align-items:center;padding:7px 0;border-bottom:1px solid var(--rule-soft);flex-wrap:wrap}
+.erow:last-child{border-bottom:0}
+.erow input[type=date],.erow select{
+  background:var(--paper);border:1px solid var(--rule);border-radius:4px;
+  padding:4px 7px;font-size:.8rem;
+}
+.erow input[type=date]{flex:0 0 138px}
+.erow select{flex:0 0 116px}
+.erow .sj{flex:1;min-width:60px;font-size:.78rem;color:var(--faint);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.erow .del{background:none;border:0;color:var(--faint);font-size:1rem;padding:0 4px;line-height:1}
+.erow .del:hover{color:var(--crimson)}
 
 /* ============ tables ============ */
 .tablewrap{overflow:auto;max-height:calc(100vh - 232px);min-height:260px;border:1px solid var(--rule);border-radius:5px;background:var(--card);box-shadow:var(--shadow);overscroll-behavior:contain}
@@ -424,6 +477,7 @@ function boot(){
     if (!db){
       lsLoad(); ready = true;
       setFlag("saved locally", "");
+      if (migrateState()) save();
       return;
     }
     return Promise.all([
@@ -438,6 +492,7 @@ function boot(){
         state = assemble(sn[0].data(), sn[1].data(), sn[2].data());
         markWritten();
         ready = true; setFlag("saved");
+        if (migrateState()) save();
       } else {
         /* first run on this artifact — plant the imported spreadsheet */
         ready = true;
@@ -446,6 +501,7 @@ function boot(){
     });
   }).catch(function(){
     db = null; lsLoad(); ready = true; setFlag("saved locally", "");
+    if (migrateState()) save();
   });
 }
 
@@ -516,12 +572,119 @@ function needsAction(c){
 }
 function firmContacts(fid){ return state.contacts.filter(function(c){ return c.firmId === fid; }); }
 
+/* ---------- the outreach log ----------
+   Every email you send is one entry: {id, d:"YYYY-MM-DD", type:"initial"|"followup", subject}.
+   Counting real, dated entries is what makes "emails sent", the reply rate and the
+   sent-period filter agree with each other — a single `touches` number could not say
+   *when* anything went out, and nothing kept it in step with the stage rail.
+   `touches` is still written on every change so old exports and backups keep working. */
+function parseDate(iso){
+  var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || "");
+  return m ? new Date(+m[1], +m[2]-1, +m[3]) : null;
+}
+/* component arithmetic, not +n*86400000 — a DST shift would land on the wrong day */
+function shiftDate(iso, days){
+  var d = parseDate(iso) || parseDate(today());
+  d.setDate(d.getDate() + days);
+  return d.getFullYear() + "-" + pad2(d.getMonth()+1) + "-" + pad2(d.getDate());
+}
+function startOfWeek(iso){
+  var d = parseDate(iso); if (!d) return iso;
+  return shiftDate(iso, -((d.getDay() + 6) % 7));   /* weeks run Monday → Sunday */
+}
+var MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+var WDAYS = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+function prettyDate(iso){
+  var d = parseDate(iso); if (!d) return "—";
+  return MONTHS[d.getMonth()] + " " + d.getDate() + (d.getFullYear() !== new Date().getFullYear() ? " " + d.getFullYear() : "");
+}
+
+function emailLog(c){
+  if (!Array.isArray(c.emails)) c.emails = [];
+  return c.emails;
+}
+function sortEmails(c){
+  emailLog(c).sort(function(a,b){ return String(a.d||"").localeCompare(String(b.d||"")); });
+  return c.emails;
+}
+function emailCount(c){ return emailLog(c).length; }
+function emailsOfType(c, type){
+  var l = sortEmails(c);
+  if (!type || type === "all") return l.slice();
+  return l.filter(function(e){ return e.type === type; });
+}
+function initialEmail(c){
+  var l = sortEmails(c);
+  for (var i=0;i<l.length;i++) if (l[i].type === "initial") return l[i];
+  return l[0] || null;
+}
+function initialDate(c){ var e = initialEmail(c); return e ? e.d : ""; }
+function followUpCount(c){ return emailsOfType(c, "followup").length; }
+function lastEmailDate(c){ var l = sortEmails(c); return l.length ? l[l.length-1].d : ""; }
+function nextEmailType(c){
+  return emailLog(c).some(function(e){ return e.type === "initial"; }) ? "followup" : "initial";
+}
+function syncEmails(c){
+  sortEmails(c);
+  c.touches = emailCount(c);
+  var last = lastEmailDate(c);
+  if (last && (!c.lastContact || last > c.lastContact)) c.lastContact = last;
+}
+function addEmail(c, type, date, subject){
+  var e = {id: uid("e"), d: date || today(), type: type === "initial" ? "initial" : "followup",
+           subject: subject || ""};
+  emailLog(c).push(e);
+  syncEmails(c);
+  return e;
+}
+
+var REPLIED_STAGES = {"Replied":1,"Call Scheduled":1,"Call Done":1,"Thank-You Sent":1,"Advocate":1};
+/* a contact sitting in Call Done plainly replied, whether or not the box was ever ticked */
+function hasReplied(c){ return !!c.replied || !!REPLIED_STAGES[c.stage]; }
+function wasEmailed(c){
+  return emailCount(c) > 0 || hasReplied(c) || (!!c.lastContact && c.stage !== "Not Contacted");
+}
+
+/* ---------- migration: build a log for records saved before it existed ---------- */
+function migrateContact(c){
+  var changed = false;
+  if (!Array.isArray(c.emails)){
+    c.emails = [];
+    var n = Math.max(0, parseInt(c.touches, 10) || 0);
+    if (!n && wasEmailed(c)) n = 1;
+    if (n){
+      /* only the most recent send has a date on file; space the earlier ones back by
+         the bump interval and mark them estimated so they can be corrected by hand */
+      var gap = (state.settings && state.settings.bumpDays) || 7;
+      var anchor = c.lastContact || today();
+      for (var i = n - 1; i >= 0; i--){
+        c.emails.push({
+          id: uid("e"), d: shiftDate(anchor, -i * gap),
+          type: (i === n - 1) ? "initial" : "followup",
+          subject: "", est: i > 0 || !c.lastContact
+        });
+      }
+    }
+    changed = true;
+  }
+  if (!c.replied && REPLIED_STAGES[c.stage]){ c.replied = true; changed = true; }
+  if (c.touches !== emailCount(c)){ c.touches = emailCount(c); changed = true; }
+  return changed;
+}
+function migrateState(){
+  var changed = false;
+  (state.contacts || []).forEach(function(c){ if (migrateContact(c)) changed = true; });
+  return changed;
+}
+
 /* ---------- routing ---------- */
 var TABS = [["contacts","Contacts"],["firms","Firms"],["compose","Compose"],["settings","Settings"]];
 var route = ssGet("cov.tab") || "contacts";
 var ui = {
   q:"", stage:"", prio:"", firm:"", needs:false, sort:"auto", desc:false,
   fq:"", ftarget:"", ftier:"", fgap:false,
+  sentPeriod: ssGet("cov.sentPeriod"), sentType: ssGet("cov.sentType") || "initial",
+  sentFrom: ssGet("cov.sentFrom"), sentTo: ssGet("cov.sentTo"), sentGroup: ssGet("cov.sentGroup") || "auto",
   composeTo: ssGet("cov.to"), composeTpl: "", draft:null
 };
 
@@ -547,22 +710,97 @@ function render(){
 }
 
 /* ================= CONTACTS ================= */
+/* ---------- sent-period filter ---------- */
+var SENT_PERIODS = [
+  ["","Sent: any time"],["today","Sent today"],["yesterday","Sent yesterday"],
+  ["7","Sent in last 7 days"],["14","Sent in last 14 days"],["30","Sent in last 30 days"],
+  ["90","Sent in last 90 days"],["week","Sent this week"],["lastweek","Sent last week"],
+  ["month","Sent this month"],["lastmonth","Sent last month"],["custom","Sent in custom range…"]
+];
+var SENT_TYPES = [["initial","Initial outreach"],["followup","Follow-ups"],["all","Initial + follow-ups"]];
+function sentTypeLabel(){
+  for (var i=0;i<SENT_TYPES.length;i++) if (SENT_TYPES[i][0] === ui.sentType) return SENT_TYPES[i][1];
+  return "Initial outreach";
+}
+function sentRange(){
+  var p = ui.sentPeriod, t = today();
+  if (!p) return null;
+  if (p === "custom"){
+    if (!ui.sentFrom && !ui.sentTo) return null;
+    return {from: ui.sentFrom || "1900-01-01", to: ui.sentTo || "9999-12-31",
+      label: (ui.sentFrom ? prettyDate(ui.sentFrom) : "the beginning") + " → " + (ui.sentTo ? prettyDate(ui.sentTo) : "today")};
+  }
+  if (p === "today") return {from:t, to:t, label:"today"};
+  if (p === "yesterday"){ var y = shiftDate(t,-1); return {from:y, to:y, label:"yesterday"}; }
+  if (p === "week"){ var w = startOfWeek(t); return {from:w, to:t, label:"this week"}; }
+  if (p === "lastweek"){ var lw = shiftDate(startOfWeek(t),-7); return {from:lw, to:shiftDate(lw,6), label:"last week"}; }
+  if (p === "month") return {from: t.slice(0,8) + "01", to:t, label:"this month"};
+  if (p === "lastmonth"){
+    var prevEnd = shiftDate(t.slice(0,8) + "01", -1);
+    return {from: prevEnd.slice(0,8) + "01", to: prevEnd, label:"last month"};
+  }
+  var n = parseInt(p,10);
+  if (n) return {from: shiftDate(t, -(n-1)), to: t, label:"the last " + n + " days"};
+  return null;
+}
+function spanDays(r){
+  var a = parseDate(r.from), b = parseDate(r.to);
+  if (!a || !b) return 1;
+  return Math.max(1, Math.round((b - a) / 86400000) + 1);
+}
+function inRange(d, r){ return !!d && (!r || (d >= r.from && d <= r.to)); }
+/* the emails a contact has of the chosen type inside the chosen period */
+function matchedEmails(c, r){
+  return emailsOfType(c, ui.sentType).filter(function(e){ return inRange(e.d, r); });
+}
+function bucketsFor(r, grain){
+  var out = [], cur = grain === "week" ? startOfWeek(r.from) : r.from, guard = 0;
+  while (cur <= r.to && guard++ < 400){
+    out.push({from: cur, to: grain === "week" ? shiftDate(cur,6) : cur, n:0, initial:0, followup:0});
+    cur = shiftDate(cur, grain === "week" ? 7 : 1);
+  }
+  return out;
+}
+function grainFor(r){
+  if (ui.sentGroup === "day" || ui.sentGroup === "week") return ui.sentGroup;
+  return spanDays(r) > 31 ? "week" : "day";   /* auto */
+}
+function bucketLabel(b, grain){
+  if (grain === "day"){
+    var d = parseDate(b.from);
+    return (d ? WDAYS[(d.getDay()+6)%7] + " · " : "") + prettyDate(b.from);
+  }
+  return prettyDate(b.from) + " – " + prettyDate(b.to);
+}
+
 function viewContacts(v){
   var cs = state.contacts;
-  var sent = 0, replied = 0, calls = 0, refs = 0, act = 0;
+  var sent = 0, initialCount = 0, fupCount = 0, calls = 0, refs = 0, act = 0;
+  var emailedPeople = 0, repliedPeople = 0;
   cs.forEach(function(c){
-    sent += c.touches || 0;
-    if (c.replied) replied++;
+    syncEmails(c);
+    sent += emailCount(c);
+    initialCount += emailsOfType(c, "initial").length;
+    fupCount += followUpCount(c);
+    if (wasEmailed(c)){ emailedPeople++; if (hasReplied(c)) repliedPeople++; }
     if (c.callDate || c.stage === "Call Done" || c.stage === "Thank-You Sent" || c.stage === "Advocate") calls++;
     if (c.referral) refs++;
     if (needsAction(c)) act++;
   });
-  var emailedPeople = cs.filter(function(c){ return (c.touches||0) > 0; }).length;
-  var rate = emailedPeople ? Math.round(replied / emailedPeople * 100) + "%" : "—";
+  /* numerator and denominator are the same population now: people you actually emailed */
+  var rate = emailedPeople ? Math.round(repliedPeople / emailedPeople * 100) + "%" : "—";
 
   var kp = h("div", {class:"kpis"});
-  [[cs.length,"Contacts"],[sent,"Emails sent"],[rate,"Reply rate"],[calls,"Calls done"],[refs,"Referrals"]].forEach(function(k){
-    kp.appendChild(h("div",{class:"kpi"},[h("div",{class:"n",text:String(k[0])}),h("div",{class:"k",text:k[1]})]));
+  [[cs.length, "Contacts", emailedPeople + " emailed"],
+   [sent, "Emails sent", initialCount + " initial · " + fupCount + " follow-up" + (fupCount === 1 ? "" : "s")],
+   [rate, "Reply rate", repliedPeople + " of " + emailedPeople + " emailed"],
+   [calls, "Calls done", ""],
+   [refs, "Referrals", ""]].forEach(function(k){
+    kp.appendChild(h("div",{class:"kpi"},[
+      h("div",{class:"n",text:String(k[0])}),
+      h("div",{class:"k",text:k[1]}),
+      k[2] ? h("div",{class:"s",text:k[2]}) : null
+    ]));
   });
   kp.appendChild(h("div",{class:"kpi" + (act ? " alert" : "")},[
     h("div",{class:"n",text:String(act)}), h("div",{class:"k",text:"Needs action"})
@@ -572,20 +810,20 @@ function viewContacts(v){
   /* filters */
   var f = h("div",{class:"filters"});
   var q = h("input",{type:"search",placeholder:"Search name, firm, group, connection…",value:ui.q});
-  q.addEventListener("input", function(){ ui.q = q.value; drawRows(); });
+  q.addEventListener("input", function(){ ui.q = q.value; drawAll(); });
   f.appendChild(q);
 
   var sel = h("select");
   sel.appendChild(h("option",{value:"",text:"All stages"}));
   state.stages.forEach(function(s){ sel.appendChild(h("option",{value:s,text:s,selected:ui.stage===s?"selected":null})); });
-  sel.addEventListener("change", function(){ ui.stage = sel.value; drawRows(); });
+  sel.addEventListener("change", function(){ ui.stage = sel.value; drawAll(); });
   f.appendChild(sel);
 
   var psel = h("select");
   [["","All priorities"],["1","P1 only"],["2","P2 only"],["3","P3 only"]].forEach(function(o){
     psel.appendChild(h("option",{value:o[0],text:o[1],selected:ui.prio===o[0]?"selected":null}));
   });
-  psel.addEventListener("change", function(){ ui.prio = psel.value; drawRows(); });
+  psel.addEventListener("change", function(){ ui.prio = psel.value; drawAll(); });
   f.appendChild(psel);
 
   var fsel = h("select");
@@ -593,25 +831,78 @@ function viewContacts(v){
   state.firms.slice().sort(function(a,b){ return a.name.localeCompare(b.name); }).forEach(function(fm){
     fsel.appendChild(h("option",{value:fm.id,text:fm.name,selected:ui.firm===fm.id?"selected":null}));
   });
-  fsel.addEventListener("change", function(){ ui.firm = fsel.value; drawRows(); });
+  fsel.addEventListener("change", function(){ ui.firm = fsel.value; drawAll(); });
   f.appendChild(fsel);
 
   var nb = h("button",{class:"chip","aria-pressed":ui.needs?"true":"false",text:"Needs action"});
-  nb.addEventListener("click", function(){ ui.needs = !ui.needs; nb.setAttribute("aria-pressed", ui.needs?"true":"false"); drawRows(); });
+  nb.addEventListener("click", function(){ ui.needs = !ui.needs; nb.setAttribute("aria-pressed", ui.needs?"true":"false"); drawAll(); });
   f.appendChild(nb);
   f.appendChild(h("span",{class:"spacer"}));
   var cnt = h("span",{class:"count"});
   f.appendChild(cnt);
   v.appendChild(f);
 
+  /* sent-period bar — when an email went out, not when the contact was last touched */
+  var sbar = h("div",{class:"sentbar"});
+  v.appendChild(sbar);
+  function drawSentBar(){
+    clear(sbar);
+    sbar.appendChild(h("span",{class:"lbl",text:"Sent"}));
+    var per = h("select");
+    SENT_PERIODS.forEach(function(o){
+      per.appendChild(h("option",{value:o[0],text:o[1],selected:ui.sentPeriod===o[0]?"selected":null}));
+    });
+    per.addEventListener("change", function(){
+      ui.sentPeriod = per.value; ssSet("cov.sentPeriod", ui.sentPeriod); drawSentBar(); drawAll();
+    });
+    sbar.appendChild(per);
+
+    var tsel = h("select");
+    SENT_TYPES.forEach(function(o){
+      tsel.appendChild(h("option",{value:o[0],text:o[1],selected:ui.sentType===o[0]?"selected":null}));
+    });
+    tsel.addEventListener("change", function(){
+      ui.sentType = tsel.value; ssSet("cov.sentType", ui.sentType); drawAll();
+    });
+    sbar.appendChild(tsel);
+
+    if (ui.sentPeriod === "custom"){
+      var from = h("input",{type:"date",value:ui.sentFrom,"aria-label":"Sent from"});
+      from.addEventListener("change", function(){ ui.sentFrom = from.value; ssSet("cov.sentFrom", from.value); drawAll(); });
+      var to = h("input",{type:"date",value:ui.sentTo,"aria-label":"Sent to"});
+      to.addEventListener("change", function(){ ui.sentTo = to.value; ssSet("cov.sentTo", to.value); drawAll(); });
+      sbar.appendChild(from);
+      sbar.appendChild(h("span",{class:"lbl",text:"to"}));
+      sbar.appendChild(to);
+    }
+    if (ui.sentPeriod){
+      [["auto","Auto"],["day","By day"],["week","By week"]].forEach(function(g){
+        var b = h("button",{class:"chip",text:g[1],"aria-pressed":ui.sentGroup===g[0]?"true":"false",
+          onclick:function(){ ui.sentGroup = g[0]; ssSet("cov.sentGroup", g[0]); drawSentBar(); drawAll(); }});
+        sbar.appendChild(b);
+      });
+      sbar.appendChild(h("button",{class:"chip",text:"Clear",onclick:function(){
+        ui.sentPeriod = ""; ui.sentFrom = ""; ui.sentTo = "";
+        ssSet("cov.sentPeriod",""); ssSet("cov.sentFrom",""); ssSet("cov.sentTo","");
+        drawSentBar(); drawAll();
+      }}));
+    }
+  }
+  drawSentBar();
+
+  var panel = h("div",{class:"sentpanel"});
+  panel.style.display = "none";
+  v.appendChild(panel);
+
   var wrap = h("div",{class:"tablewrap"});
   var tbl = h("table");
-  var cols = [["pri","Pri"],["name","Name"],["firm","Firm / Group"],["conn","Connection"],["stage","Stage"],["last","Last touch"],["next","Next action"]];
+  var cols = [["pri","Pri"],["name","Name"],["firm","Firm / Group"],["conn","Connection"],
+              ["stage","Stage"],["sent","Initial sent"],["last","Last touch"],["next","Next action"]];
   var thead = h("thead"); var tr = h("tr");
   cols.forEach(function(c){
     var th = h("th",{class:"sortable",onclick:function(){
       if (ui.sort === c[0]) ui.desc = !ui.desc; else { ui.sort = c[0]; ui.desc = false; }
-      drawRows();
+      drawAll();
     }});
     th.appendChild(document.createTextNode(c[1]));
     if (ui.sort === c[0]) th.appendChild(h("span",{class:"car",text: ui.desc ? " ▾" : " ▴"}));
@@ -622,13 +913,15 @@ function viewContacts(v){
   wrap.appendChild(tbl); v.appendChild(wrap);
 
   function filtered(){
-    var s = ui.q.trim().toLowerCase();
+    var s = ui.q.trim().toLowerCase(), r = sentRange();
     return state.contacts.filter(function(c){
       if (ui.stage && c.stage !== ui.stage) return false;
       if (ui.prio && String(c.priority) !== ui.prio) return false;
       if (ui.firm && c.firmId !== ui.firm) return false;
       if (ui.needs && !needsAction(c)) return false;
-      if (!ui.stage && !ui.q && c.stage === "Dead") return false;
+      if (r && !matchedEmails(c, r).length) return false;
+      /* a dead contact you emailed still counts toward what you sent that week */
+      if (!ui.stage && !ui.q && !r && c.stage === "Dead") return false;
       if (s){
         var hay = (fullName(c) + " " + firmName(c.firmId) + " " + c.group + " " + c.connection + " " + c.title + " " + (c.tags||[]).join(" ")).toLowerCase();
         if (hay.indexOf(s) < 0) return false;
@@ -645,48 +938,140 @@ function viewContacts(v){
         var na = needsAction(a) ? 0 : 1, nb2 = needsAction(b) ? 0 : 1;
         if (na !== nb2) return na - nb2;
         if (a.priority !== b.priority) return a.priority - b.priority;
-        var da = staleDays(a), db = staleDays(b);
-        return (db === null ? -1 : db) - (da === null ? -1 : da);
+        var da = staleDays(a), sb = staleDays(b);
+        return (sb === null ? -1 : sb) - (da === null ? -1 : da);
       }
       if (k === "pri") r = a.priority - b.priority;
       else if (k === "name") r = fullName(a).localeCompare(fullName(b));
       else if (k === "firm") r = firmName(a.firmId).localeCompare(firmName(b.firmId));
       else if (k === "conn") r = (a.connection||"").localeCompare(b.connection||"");
       else if (k === "stage") r = STAGE_ORDER.indexOf(a.stage) - STAGE_ORDER.indexOf(b.stage);
+      else if (k === "sent") r = (initialDate(a) || "9999-12-31").localeCompare(initialDate(b) || "9999-12-31");
       else if (k === "last") r = (Date.parse(a.lastContact||"1970-01-01")||0) - (Date.parse(b.lastContact||"1970-01-01")||0);
       else if (k === "next") r = (a.nextAction||"").localeCompare(b.nextAction||"");
       return r * dir;
     });
     return rows;
   }
-  function drawRows(){
+
+  function drawPanel(rows){
+    clear(panel);
+    var r = sentRange();
+    if (!r){ panel.style.display = "none"; return; }
+    panel.style.display = "";
+
+    var grain = grainFor(r);
+    var bs = bucketsFor(r, grain), byKey = {};
+    bs.forEach(function(b){ byKey[b.from] = b; });
+    var total = 0, ini = 0, fup = 0, people = 0, hits = [];
+    rows.forEach(function(c){
+      var es = matchedEmails(c, r);
+      if (es.length) people++;
+      es.forEach(function(e){
+        total++;
+        if (e.type === "initial") ini++; else fup++;
+        hits.push({e:e, c:c});
+        var key = grain === "week" ? startOfWeek(e.d) : e.d;
+        var b = byKey[key];
+        if (b){ b.n++; if (e.type === "initial") b.initial++; else b.followup++; }
+      });
+    });
+
+    var head = h("div",{class:"ph"},[
+      h("span",{class:"t",text:"Outreach — " + r.label}),
+      h("span",{class:"r",text:sentTypeLabel() + "  ·  " + r.from + " → " + (r.to === "9999-12-31" ? today() : r.to)})
+    ]);
+    head.appendChild(h("span",{class:"spacer"}));
+    head.appendChild(h("button",{class:"chip",text:"Copy as CSV",onclick:function(){
+      var lines = ["Date,Type,Name,Firm,Subject"];
+      hits.slice().sort(function(a,b){ return a.e.d.localeCompare(b.e.d); }).forEach(function(x){
+        lines.push([x.e.d, x.e.type === "initial" ? "Initial" : "Follow-up", fullName(x.c),
+          firmName(x.c.firmId), x.e.subject || ""].map(function(z){
+            return '"' + String(z==null?"":z).replace(/"/g,'""') + '"'; }).join(","));
+      });
+      navigator.clipboard.writeText(lines.join("\n")).then(function(){ toast("Copied " + hits.length + " emails"); });
+    }}));
+    panel.appendChild(head);
+
+    var days = spanDays(r);
+    var perDay = days ? (Math.round(total / days * 10) / 10) : 0;
+    var busiest = 0;
+    bs.forEach(function(b){ if (b.n > busiest) busiest = b.n; });
+    var sum = h("div",{class:"sentsum"});
+    [[total,"Emails sent"],[ini,"Initial"],[fup,"Follow-ups"],[people,"Contacts"],
+     [perDay,"Per day"],[busiest,"Busiest " + grain]].forEach(function(x){
+      sum.appendChild(h("div",{class:"s"},[h("div",{class:"n",text:String(x[0])}),h("div",{class:"k",text:x[1]})]));
+    });
+    panel.appendChild(sum);
+
+    if (!total){
+      panel.appendChild(h("div",{class:"hint",style:"color:var(--faint);font-size:.82rem",
+        text:"No " + sentTypeLabel().toLowerCase() + " logged in this period."}));
+      return;
+    }
+    var brk = h("div",{class:"brk"});
+    var shown = bs.slice(Math.max(0, bs.length - 120)).reverse();
+    shown.forEach(function(b){
+      var pct = busiest ? Math.round(b.n / busiest * 100) : 0;
+      var row = h("div",{class:"brk-row" + (b.n ? "" : " zero")},[
+        h("span",{class:"d",text:bucketLabel(b, grain)}),
+        h("span",{class:"track"},[h("span",{class:"fillbar",style:"width:" + (b.n ? Math.max(pct,4) : 0) + "%"})]),
+        h("span",{class:"n",text:String(b.n)}),
+        h("span",{class:"sub",text: ui.sentType === "all" && b.n ? b.initial + " init · " + b.followup + " f/u" : ""})
+      ]);
+      brk.appendChild(row);
+    });
+    panel.appendChild(brk);
+  }
+
+  function drawRows(rows){
     clear(tbody);
-    var rows = sortRows(filtered());
+    var r = sentRange();
     cnt.textContent = rows.length + " of " + state.contacts.length;
     if (!rows.length){
-      var td = h("td",{colspan:"7"},[h("div",{class:"empty",text:"No contacts match. Clear the filters, or add someone."})]);
+      var td = h("td",{colspan:"8"},[h("div",{class:"empty",
+        text: r ? "Nobody was sent " + sentTypeLabel().toLowerCase() + " in that period."
+                : "No contacts match. Clear the filters, or add someone."})]);
       tbody.appendChild(h("tr",{},[td]));
       return;
     }
     rows.forEach(function(c){
-      var d = staleDays(c);
+      /* days since the last touch, not staleDays() — that is null off-pipeline and rendered "nulld ago" */
+      var d = daysSince(c.lastContact);
       var lastCell;
-      if (!c.lastContact) lastCell = h("span",{class:"fresh",text:"—"});
+      if (!c.lastContact || d === null) lastCell = h("span",{class:"fresh",text:"—"});
       else if (isStale(c)) lastCell = h("span",{class:"stale",text:d + "d · stale"});
       else lastCell = h("span",{class:"fresh",text:d === 0 ? "today" : d + "d ago"});
-      var tr = h("tr",{onclick:function(){ openContact(c.id); }},[
+
+      var ie = initialEmail(c), n = emailCount(c), fu = followUpCount(c);
+      var sentCell = h("td",{});
+      if (!ie) sentCell.appendChild(h("span",{class:"fresh",text:"—"}));
+      else {
+        sentCell.appendChild(h("span",{class:"fresh",text:(ie.est ? "~" : "") + prettyDate(ie.d)}));
+        var subTxt = r ? matchedEmails(c, r).length + " in period"
+                       : (fu ? "+" + fu + " follow-up" + (fu > 1 ? "s" : "") : n + " email" + (n > 1 ? "s" : ""));
+        sentCell.appendChild(h("span",{class:"sub",text:subTxt}));
+      }
+
+      var tr2 = h("tr",{onclick:function(){ openContact(c.id); }},[
         h("td",{},[h("span",{class:"dot d"+c.priority,title:"P"+c.priority})]),
         h("td",{class:"nm"},[document.createTextNode(fullName(c)), h("span",{class:"sub",text:(c.title||"—")})]),
         h("td",{},[document.createTextNode(firmName(c.firmId) || "—"), h("span",{class:"sub",text:c.group||""})]),
         h("td",{},[document.createTextNode(c.connection || "—")]),
         h("td",{},[h("span",{class:"pill "+stageClass(c.stage),text:c.stage})]),
+        sentCell,
         h("td",{},[lastCell]),
         h("td",{},[document.createTextNode(c.nextAction || "—")])
       ]);
-      tbody.appendChild(tr);
+      tbody.appendChild(tr2);
     });
   }
-  drawRows();
+  function drawAll(){
+    var rows = sortRows(filtered());
+    drawPanel(rows);
+    drawRows(rows);
+  }
+  drawAll();
 }
 
 /* ================= CONTACT DRAWER ================= */
@@ -770,9 +1155,13 @@ function openContact(id){
 
     /* quick actions */
     var qa = h("div",{class:"filters"});
-    qa.appendChild(h("button",{class:"btn sm",text:"Log email sent today",onclick:function(){
-      logEmail(c); save(); openContact(id); render(); toast("Logged — " + c.stage);
-    }}));
+    var nextType = nextEmailType(c);
+    qa.appendChild(h("button",{class:"btn sm",
+      text: nextType === "initial" ? "Log initial outreach today" : "Log follow-up today",
+      onclick:function(){
+        logEmail(c, {type: nextType});
+        save(); openContact(id); render(); toast("Logged — " + c.stage);
+      }}));
     qa.appendChild(h("button",{class:"btn sm",text:"Mark replied",onclick:function(){
       c.replied = true; c.stage = "Replied"; c.lastContact = today();
       c.nextAction = "Propose call times"; save(); openContact(id); render();
@@ -823,7 +1212,6 @@ function openContact(id){
     g3.appendChild(field("Next action", c.nextAction, function(v){ c.nextAction=v; save(); render(); }, {wide:true, ph:"Draft cold intro"}));
     g3.appendChild(field("Next action date", c.nextDate, function(v){ c.nextDate=v; save(); }, {type:"date"}));
     g3.appendChild(field("Call date", c.callDate, function(v){ c.callDate=v; save(); render(); }, {type:"date"}));
-    g3.appendChild(field("Touches", c.touches, function(v){ c.touches=parseInt(v,10)||0; save(); render(); }, {type:"number"}));
     g3.appendChild(field("Tags", (c.tags||[]).join(", "), function(v){ c.tags = v.split(",").map(function(x){return x.trim();}).filter(Boolean); save(); }, {wide:true, ph:"comma separated"}));
     fs3.appendChild(g3);
     var checks = h("div",{class:"fgrid"});
@@ -835,6 +1223,53 @@ function openContact(id){
     });
     fs3.appendChild(checks);
     body.appendChild(fs3);
+
+    /* outreach log */
+    var n = emailCount(c), fu = followUpCount(c), ie = initialEmail(c);
+    var fs5 = h("div",{class:"fieldset"},[h("div",{class:"lg",text:"Outreach log"})]);
+    fs5.appendChild(h("div",{class:"hint",style:"color:var(--muted);font-size:.8rem",
+      text: n ? n + " email" + (n===1?"":"s") + " · " + (n - fu) + " initial · " + fu + " follow-up" +
+                (fu===1?"":"s") + (ie ? " · first sent " + prettyDate(ie.d) : "")
+              : "Nothing sent yet. Log an email here and it counts toward the sent-period filter."}));
+    sortEmails(c);
+    var elog = h("div",{class:"elog"});
+    emailLog(c).forEach(function(e, i){
+      var dIn = h("input",{type:"date",value:e.d,"aria-label":"Date sent"});
+      dIn.addEventListener("change", function(){
+        if (!dIn.value) return;
+        e.d = dIn.value; e.est = false; syncEmails(c); save(); openContact(id); render();
+      });
+      var tSel = h("select",{"aria-label":"Email type"});
+      [["initial","Initial"],["followup","Follow-up"]].forEach(function(o){
+        tSel.appendChild(h("option",{value:o[0],text:o[1],selected:e.type===o[0]?"selected":null}));
+      });
+      tSel.addEventListener("change", function(){
+        e.type = tSel.value; save(); openContact(id); render();
+      });
+      elog.appendChild(h("div",{class:"erow"},[
+        dIn, tSel,
+        h("span",{class:"sj",title:e.subject||"",
+          text: e.subject || (e.est ? "date estimated — set the real one" : "")}),
+        h("button",{class:"del",title:"Delete entry",html:"&times;",onclick:function(ev){
+          ev.stopPropagation();
+          emailLog(c).splice(i,1); syncEmails(c); save(); openContact(id); render();
+        }})
+      ]));
+    });
+    fs5.appendChild(elog);
+    var addDate = h("input",{type:"date",value:today(),"aria-label":"Date of the email to add"});
+    var addType = h("select",{"aria-label":"Type of the email to add"});
+    [["initial","Initial"],["followup","Follow-up"]].forEach(function(o){
+      addType.appendChild(h("option",{value:o[0],text:o[1],selected:nextEmailType(c)===o[0]?"selected":null}));
+    });
+    fs5.appendChild(h("div",{class:"erow"},[
+      addDate, addType,
+      h("button",{class:"btn sm",text:"Add email",onclick:function(){
+        addEmail(c, addType.value, addDate.value || today(), "");
+        save(); openContact(id); render(); toast("Logged");
+      }})
+    ]));
+    body.appendChild(fs5);
 
     /* notes */
     var fs4 = h("div",{class:"fieldset"},[h("div",{class:"lg",text:"Notes log"})]);
@@ -872,22 +1307,27 @@ function openContact(id){
   });
 }
 
+/* how many emails a stage implies you have sent — moving the rail forward is how most
+   people log a send, so the log is topped up to match instead of silently drifting */
+var STAGE_EMAILS = {"Emailed":1,"Follow-Up 1":2,"Follow-Up 2":3};
 function setStage(c, s){
   c.stage = s;
-  if (s === "Emailed" || s === "Follow-Up 1" || s === "Follow-Up 2"){
-    c.lastContact = today();
+  if (STAGE_EMAILS[s]){
+    while (emailCount(c) < STAGE_EMAILS[s]) addEmail(c, nextEmailType(c), today(), "");
+    if (!c.lastContact) c.lastContact = today();
     c.nextAction = s === "Follow-Up 2" ? "Final bump sent — wait" : "Bump in " + (state.settings.bumpDays||7) + " days";
   }
-  if (s === "Replied"){ c.replied = true; c.nextAction = "Propose call times"; }
+  if (REPLIED_STAGES[s]) c.replied = true;
+  if (s === "Replied"){ c.nextAction = "Propose call times"; }
   if (s === "Call Done"){ c.callDate = c.callDate || today(); c.nextAction = "Send thank-you"; c.nextDate = today(); }
   if (s === "Thank-You Sent"){ c.lastContact = today(); c.nextAction = "Keep warm — check in next month"; }
   if (s === "Advocate"){ c.referral = true; c.nextAction = ""; }
   if (s === "Dead"){ c.nextAction = ""; }
   if (s === "Not Contacted"){ c.nextAction = "Draft cold intro"; }
 }
-function logEmail(c){
-  c.touches = (c.touches||0) + 1;
-  c.lastContact = today();
+function logEmail(c, opts){
+  opts = opts || {};
+  addEmail(c, opts.type || nextEmailType(c), opts.date || today(), opts.subject || "");
   var order = ["Not Contacted","Emailed","Follow-Up 1","Follow-Up 2"];
   var i = order.indexOf(c.stage);
   if (i >= 0 && i < 3) c.stage = order[i+1];
@@ -977,7 +1417,7 @@ function addContactForm(){
       firmId: firmIdFor(vals.firm), title: vals.title, group: vals.group, office: vals.office,
       connection: vals.conn, email: vals.email, emailConf: vals.email ? "pattern" : "unknown",
       year:"", school:"", linkedin:"", stage:"Not Contacted", priority: parseInt(vals.prio,10)||3,
-      lastContact:"", nextAction:"Draft cold intro", nextDate:"", touches:0, replied:false,
+      lastContact:"", nextAction:"Draft cold intro", nextDate:"", touches:0, replied:false, emails:[],
       callDate:"", referral:false, tags:[], notes: vals.note.trim() ? [{d:today(), t:vals.note.trim()}] : []
     };
     state.contacts.push(c);
@@ -1013,7 +1453,7 @@ function viewFirms(v){
   var fs = state.firms;
   var tgt = fs.filter(function(f){ return f.target === "Yes"; });
   var covered = tgt.filter(function(f){ return firmContacts(f.id).length > 0; }).length;
-  var replied = tgt.filter(function(f){ return firmContacts(f.id).some(function(c){ return c.replied; }); }).length;
+  var replied = tgt.filter(function(f){ return firmContacts(f.id).some(hasReplied); }).length;
 
   var kp = h("div",{class:"kpis"});
   [[fs.length,"Firms"],[tgt.length,"Targets"],[covered+"/"+tgt.length,"Targets w/ contacts"],[replied,"Targets w/ replies"]].forEach(function(k){
@@ -1081,7 +1521,7 @@ function viewFirms(v){
     if (!rows.length){ tb.appendChild(h("tr",{},[h("td",{colspan:"9"},[h("div",{class:"empty",text:"No firms match."})])])); return; }
     rows.forEach(function(f2){
       var cs = firmContacts(f2.id);
-      var rp = cs.filter(function(c){ return c.replied; }).length;
+      var rp = cs.filter(hasReplied).length;
       var gap = f2.target === "Yes" && cs.length === 0;
       var dl = f2.deadline ? -daysSince(f2.deadline) : null;
       var dlCell = !f2.deadline ? h("span",{class:"fresh",text:"—"})
@@ -1270,7 +1710,7 @@ function viewCompose(v){
     navigator.clipboard.writeText(subjIn.value).then(function(){ toast("Subject copied"); });
   }}));
   foot.appendChild(h("button",{class:"btn",text:"Log as sent",onclick:function(){
-    logEmail(c);
+    logEmail(c, {subject: subjIn.value});
     c.notes = c.notes || [];
     c.notes.unshift({d: today(), t: "Sent: " + subjIn.value});
     ui.draft = null; save(); render(); toast("Logged — " + c.stage);
@@ -1287,7 +1727,7 @@ function viewCompose(v){
   var tip = h("div",{class:"sectitle"},[h("span",{class:"e",text:"Reminder"})]);
   v.appendChild(tip);
   v.appendChild(h("div",{class:"hint",style:"color:var(--muted);font-size:.88rem;max-width:70ch",
-    text:"Rewrite the marked custom line before sending — it is the only part of the email that proves you did not mass-blast it. “Log as sent” advances the stage, stamps today, bumps the touch count and writes the subject into the notes log."}));
+    text:"Rewrite the marked custom line before sending — it is the only part of the email that proves you did not mass-blast it. “Log as sent” advances the stage and writes a dated entry into the outreach log (initial the first time, follow-up after that), so it shows up in the Contacts tab’s sent-period filter."}));
 }
 
 /* ================= SETTINGS ================= */
@@ -1347,15 +1787,34 @@ function viewSettings(v){
       navigator.clipboard.writeText(JSON.stringify(state,null,1)).then(function(){ toast("Copied — paste somewhere safe"); });
     }}),
     h("button",{class:"btn",text:"Copy contacts as CSV",onclick:function(){
-      var head = ["Name","Firm","Title","Group","Office","Connection","Email","Stage","Priority","Last contact","Next action","Touches","Replied","Referral","Notes"];
+      var head = ["Name","Firm","Title","Group","Office","Connection","Email","Stage","Priority",
+        "Initial sent","Last email","Last contact","Next action","Emails sent","Follow-ups","Replied","Referral","Notes"];
       var lines = [head.join(",")];
       state.contacts.forEach(function(c){
         var row = [fullName(c), firmName(c.firmId), c.title, c.group, c.office, c.connection, c.email,
-          c.stage, "P"+c.priority, c.lastContact, c.nextAction, c.touches, c.replied?"Yes":"No",
+          c.stage, "P"+c.priority, initialDate(c), lastEmailDate(c), c.lastContact, c.nextAction,
+          emailCount(c), followUpCount(c), hasReplied(c)?"Yes":"No",
           c.referral?"Yes":"No", (c.notes||[]).map(function(n){return n.d+": "+n.t;}).join(" | ")];
         lines.push(row.map(function(x){ return '"' + String(x==null?"":x).replace(/"/g,'""') + '"'; }).join(","));
       });
       navigator.clipboard.writeText(lines.join("\n")).then(function(){ toast("CSV copied"); });
+    }}),
+    h("button",{class:"btn",text:"Copy outreach log as CSV",onclick:function(){
+      var rows = [];
+      state.contacts.forEach(function(c){
+        emailsOfType(c, "all").forEach(function(e){
+          rows.push([e.d, e.type === "initial" ? "Initial" : "Follow-up", fullName(c),
+            firmName(c.firmId), c.stage, e.subject || "", e.est ? "estimated" : ""]);
+        });
+      });
+      rows.sort(function(a,b){ return String(a[0]).localeCompare(String(b[0])); });
+      var out = [["Date","Type","Name","Firm","Stage","Subject","Date source"].join(",")];
+      rows.forEach(function(r){
+        out.push(r.map(function(x){ return '"' + String(x==null?"":x).replace(/"/g,'""') + '"'; }).join(","));
+      });
+      navigator.clipboard.writeText(out.join("\n")).then(function(){
+        toast(rows.length + " emails copied");
+      });
     }})
   ]));
   c4.appendChild(h("div",{class:"hint",style:"color:var(--muted)",
@@ -1380,6 +1839,7 @@ function viewSettings(v){
       if (parsed.settings) state.settings = parsed.settings;
       if (parsed.stages && parsed.stages.length) state.stages = parsed.stages;
       if (parsed.templates && parsed.templates.length) state.templates = parsed.templates;
+      migrateState();
       written = {};
       save(); render(); toast("Restored " + parsed.contacts.length + " contacts");
     }})
@@ -1390,6 +1850,7 @@ function viewSettings(v){
 /* ---------- boot ---------- */
 $("addbtn").addEventListener("click", addContactForm);
 setFlag("loading…", "on");
+migrateState();
 document.addEventListener("keydown", function(e){
   if (e.key === "n" && (e.metaKey || e.ctrlKey)){ e.preventDefault(); addContactForm(); }
 });
