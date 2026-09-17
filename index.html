@@ -585,7 +585,9 @@ function esc(s){ return String(s==null?"":s); }
 
 /* ---------- persistence: document store, with a local fallback ---------- */
 var db = null, dirty = false, saving = false, timer = null, ready = false;
+var SCHEMA = 2;                            /* 1: stages as plain names. 2: {name, kind}. */
 var LS = "coverage.state.v1";
+var LS_PREV = "coverage.state.previous";   /* last copy that parsed cleanly */
 var flag = $("saveflag");
 function setFlag(txt, cls){ flag.textContent = txt; flag.className = cls || ""; }
 
@@ -754,6 +756,7 @@ function normalizeState(raw){
   var stages = normalizeStages(src.stages);
   var templates = asArr(src.templates).map(function(t){ return normalizeTemplate(t, tSeen); }).filter(Boolean);
   var out = {
+    v: SCHEMA,
     profile: overlay(SEED.profile, src.profile),
     settings: settings,
     stages: stages,
@@ -775,18 +778,44 @@ function normalizeState(raw){
   return out;
 }
 
-function lsLoad(){
+/* Keep the last copy that parsed, so an interrupted write or a bad hand edit
+   has something to fall back to instead of silently starting from the sample
+   data. Both keys are tried before the seed is. */
+function lsParse(raw){
+  if (!raw) return null;
   try {
-    var raw = localStorage.getItem(LS);
-    if (raw) state = normalizeState(JSON.parse(raw));
-  } catch(e){}
+    var o = JSON.parse(raw);
+    if (!isObj(o)) return null;
+    return normalizeState(o);
+  } catch(e){ return null; }
+}
+function lsLoad(){
+  var raw = null, prev = null;
+  try { raw  = localStorage.getItem(LS); } catch(e){}
+  try { prev = localStorage.getItem(LS_PREV); } catch(e){}
+  var loaded = lsParse(raw);
+  if (!loaded && prev){
+    loaded = lsParse(prev);
+    if (loaded) setTimeout(function(){
+      toast("Recovered your last saved copy \u2014 the newest one was unreadable");
+    }, 400);
+  }
+  if (loaded){
+    state = loaded;
+    if (raw && raw !== prev){ try { localStorage.setItem(LS_PREV, raw); } catch(e){} }
+  }
+  return !!loaded;
 }
 /* The embedded seed still carries the original shape, so run it through the same
    door as everything else rather than trusting it because it is ours. */
 state = normalizeState(SEED);
 
 function lsSave(){
-  try { localStorage.setItem(LS, JSON.stringify(state)); return true; } catch(e){ return false; }
+  try {
+    state.v = SCHEMA;
+    localStorage.setItem(LS, JSON.stringify(state));
+    return true;
+  } catch(e){ return false; }
 }
 
 function markWritten(){
@@ -859,7 +888,19 @@ function flush(){
   });
 }
 window.addEventListener("beforeunload", function(e){
-  if (dirty){ e.preventDefault(); e.returnValue = ""; }
+  if (!dirty) return;
+  /* The local path is a synchronous localStorage write, so there is no reason to
+     interrupt anyone with a dialog: just save. The old handler warned and then
+     saved nothing, which is the worst of both. Only the async document store can
+     genuinely lose work on the way out, and only that case still asks. */
+  clearTimeout(timer);
+  if (!db && lsSave()){ dirty = false; setFlag("saved locally"); return; }
+  e.preventDefault(); e.returnValue = "";
+});
+/* Backgrounding a tab, or hiding the Electron window, does not reliably run
+   beforeunload. This fires in cases that one misses. */
+document.addEventListener("visibilitychange", function(){
+  if (document.visibilityState === "hidden" && dirty){ clearTimeout(timer); flush(); }
 });
 
 function toast(msg){
@@ -1000,13 +1041,21 @@ function renderTabs(){
     }));
   });
 }
-function render(){
+function renderView(){
   renderTabs();
   var v = $("view"); clear(v);
   if (route === "contacts") viewContacts(v);
   else if (route === "firms") viewFirms(v);
   else if (route === "compose") viewCompose(v);
   else viewSettings(v);
+}
+/* Guarding only the boot render left every later one — a tab switch, a save, a
+   restore — free to throw straight through to an uncaught error and a page
+   frozen on stale markup. render() is the guarded entry point; nothing calls
+   renderView directly. */
+function render(){
+  try { renderView(); }
+  catch(err){ renderCrash(err); }
 }
 
 /* ================= CONTACTS ================= */
@@ -2095,14 +2144,37 @@ setFlag("loading…", "on");
 document.addEventListener("keydown", function(e){
   if (e.key === "n" && (e.metaKey || e.ctrlKey)){ e.preventDefault(); addContactForm(); }
 });
-safeRender();
-boot().then(function(){ safeRender(); if (dirty) flush(); },
-           function(){ ready = true; safeRender(); });
-function safeRender(){
-try { render(); } catch(err){
-  $("view").appendChild(h("div",{class:"empty",text:"Something broke while rendering: " + (err && err.message)}));
+render();
+boot().then(function(){ render(); if (dirty) flush(); },
+           function(){ ready = true; render(); });
+/* Last line of defence. normalizeState should make this unreachable, but if a
+   render ever does throw, the old handler printed the message and left you with
+   no way out — Settings threw too, so the backup and restore controls were
+   unreachable and the only fix was the developer console. Get the data out
+   first, then offer the reset. */
+function renderCrash(err){
   if (window.console) console.error(err);
-}
+  closeLayer();
+  var v = $("view"); clear(v);
+  v.appendChild(h("div",{class:"empty"},[
+    h("h3",{text:"Something broke while rendering"}),
+    h("div",{class:"hint",style:"margin:8px 0 14px",
+      text:String((err && err.message) || err)}),
+    h("div",{class:"filters",style:"justify-content:center"},[
+      h("button",{class:"btn primary",text:"Download my data",onclick:function(){
+        var raw = "";
+        try { raw = localStorage.getItem(LS) || localStorage.getItem(LS_PREV) || ""; } catch(e){}
+        if (!raw){ try { raw = JSON.stringify(state); } catch(e){ raw = ""; } }
+        if (raw) download(backupName("json"), raw, "application/json");
+      }}),
+      h("button",{class:"btn danger",text:"Reset to a blank tracker",onclick:function(){
+        if (!confirm("Clear the stored data and start over?\n\nDownload your data first if you have not.")) return;
+        try { localStorage.removeItem(LS); localStorage.removeItem(LS_PREV); } catch(e){}
+        state = normalizeState({contacts: [], firms: []});
+        written = {}; lsSave(); render();
+      }})
+    ])
+  ]));
 }
 })();
 </script>
