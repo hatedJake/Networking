@@ -403,6 +403,14 @@ td .sub.due{color:var(--crimson);font-weight:500}
   font-family:"IBM Plex Mono",monospace;font-size:.62rem;letter-spacing:.14em;
   text-transform:uppercase;color:var(--brass);padding-bottom:6px;border-bottom:1px solid var(--rule);
 }
+.stagerow{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--rule-soft);flex-wrap:wrap}
+.stagerow:last-of-type{border-bottom:0}
+.stagerow input[type=text]{flex:1 1 170px;min-width:120px;background:var(--paper);
+  border:1px solid var(--rule);border-radius:4px;padding:6px 9px;font-size:.88rem}
+.stagerow select{flex:0 1 150px;background:var(--paper);border:1px solid var(--rule);
+  border-radius:4px;padding:6px 8px;font-size:.84rem}
+.stagerow .count{flex:0 0 auto;min-width:76px;text-align:right}
+.stagerow .btn[disabled]{opacity:.35;cursor:default}
 .checkline{display:flex;align-items:center;gap:8px;font-size:.88rem}
 .checkline input{width:15px;height:15px;accent-color:var(--brass)}
 
@@ -593,15 +601,57 @@ function shard(st){
 var written = {};
 
 function assemble(meta, contacts, firms){
-  return {
-    profile: meta.profile || SEED.profile,
-    settings: meta.settings || SEED.settings,
-    stages: (meta.stages && meta.stages.length) ? meta.stages : SEED.stages,
-    templates: (meta.templates && meta.templates.length) ? meta.templates : SEED.templates,
-    contacts: contacts.list || [],
-    firms: firms.list || []
-  };
+  return normalizeState({
+    profile: meta.profile, settings: meta.settings,
+    stages: meta.stages, templates: meta.templates,
+    contacts: contacts.list, firms: firms.list
+  });
 }
+/* ---------- stage vocabulary ----------
+   Behaviour used to key off thirty hardcoded stage-name literals, so the
+   Settings editor's promise to "rename or reorder" quietly broke the app:
+   renaming Emailed to Sent left every contact on an orphaned stage, dropped it
+   from the filter, and switched off staleness and the bump clock for them.
+   A stage now carries a kind, and every rule reads the kind. Names are yours. */
+var STAGE_KINDS = [
+  ["new",       "Not started"],
+  ["outreach",  "Outreach sent"],
+  ["replied",   "They replied"],
+  ["scheduled", "Call booked"],
+  ["met",       "Call happened"],
+  ["won",       "Advocate"],
+  ["dead",      "Closed out"]
+];
+var KIND_SET = {};
+STAGE_KINDS.forEach(function(k){ KIND_SET[k[0]] = k[1]; });
+var DEFAULT_STAGES = [
+  {name:"Not Contacted",  kind:"new"},
+  {name:"Emailed",        kind:"outreach"},
+  {name:"Follow-Up 1",    kind:"outreach"},
+  {name:"Follow-Up 2",    kind:"outreach"},
+  {name:"Replied",        kind:"replied"},
+  {name:"Call Scheduled", kind:"scheduled"},
+  {name:"Call Done",      kind:"met"},
+  {name:"Thank-You Sent", kind:"met"},
+  {name:"Advocate",       kind:"won"},
+  {name:"Dead",           kind:"dead"}
+];
+var LEGACY_KIND = {};
+DEFAULT_STAGES.forEach(function(s){ LEGACY_KIND[s.name] = s.kind; });
+
+function stageIndex(name){
+  for (var i = 0; i < state.stages.length; i++) if (state.stages[i].name === name) return i;
+  return -1;
+}
+function stageKind(name){ var i = stageIndex(name); return i < 0 ? "" : state.stages[i].kind; }
+function stagesOfKind(kind){
+  return state.stages.filter(function(s){ return s.kind === kind; });
+}
+function indexOfName(list, name){
+  for (var i = 0; i < list.length; i++) if (list[i].name === name) return i;
+  return -1;
+}
+
 /* ---------- normalisation ----------
    Anything that arrives from storage or a backup file is untrusted: an older
    schema, a half-written record, a hand-edited export. Merge it over the seed
@@ -679,32 +729,62 @@ function normalizeTemplate(t, seen){
   return {id: id, name: asStr(t.name) || "Untitled", subject: asStr(t.subject),
           body: asStr(t.body), customLine: asStr(t.customLine)};
 }
+/* Accepts both shapes: the original array of plain names and the {name, kind}
+   records that replaced it. An unrecognised kind falls back to the default for
+   that name, then to outreach. */
+function normalizeStages(raw){
+  var out = [], seen = {};
+  asArr(raw).forEach(function(s){
+    var name = "", kind = "";
+    if (typeof s === "string"){ name = s.trim(); }
+    else if (isObj(s)){ name = asStr(s.name).trim(); kind = asStr(s.kind); }
+    if (!name || seen[name.toLowerCase()]) return;
+    if (!KIND_SET[kind]) kind = LEGACY_KIND[name] || "outreach";
+    seen[name.toLowerCase()] = 1;
+    out.push({name: name, kind: kind});
+  });
+  return out.length ? out : DEFAULT_STAGES.map(function(s){ return {name: s.name, kind: s.kind}; });
+}
 function normalizeState(raw){
   var src = isObj(raw) ? raw : {};
   var cSeen = {}, fSeen = {}, tSeen = {};
   var settings = overlay(SEED.settings, src.settings);
   settings.bumpDays = Math.max(1, asInt(settings.bumpDays, 7));
   settings.groups = asArr(settings.groups).map(asStr).filter(Boolean);
-  var stages = asArr(src.stages).map(asStr).filter(Boolean);
+  var stages = normalizeStages(src.stages);
   var templates = asArr(src.templates).map(function(t){ return normalizeTemplate(t, tSeen); }).filter(Boolean);
   var out = {
     profile: overlay(SEED.profile, src.profile),
     settings: settings,
-    stages: stages.length ? stages : SEED.stages.slice(),
+    stages: stages,
     templates: templates.length ? templates : SEED.templates.slice(),
     contacts: asArr(src.contacts).map(function(c){ return normalizeContact(c, cSeen); }).filter(Boolean),
     firms: asArr(src.firms).map(function(f){ return normalizeFirm(f, fSeen); }).filter(Boolean)
   };
-  out.contacts.forEach(function(c){ if (!c.stage) c.stage = out.stages[0]; });
+  /* Never leave a contact pointing at a stage the pipeline does not have: adopt
+     the stage instead of guessing a replacement and losing what it recorded. */
+  var known = {};
+  out.stages.forEach(function(st){ known[st.name] = 1; });
+  out.contacts.forEach(function(c){
+    if (!c.stage){ c.stage = out.stages[0].name; return; }
+    if (!known[c.stage]){
+      out.stages.push({name: c.stage, kind: LEGACY_KIND[c.stage] || "outreach"});
+      known[c.stage] = 1;
+    }
+  });
   return out;
 }
 
 function lsLoad(){
   try {
     var raw = localStorage.getItem(LS);
-    if (raw) state = JSON.parse(raw);
+    if (raw) state = normalizeState(JSON.parse(raw));
   } catch(e){}
 }
+/* The embedded seed still carries the original shape, so run it through the same
+   door as everything else rather than trusting it because it is ours. */
+state = normalizeState(SEED);
+
 function lsSave(){
   try { localStorage.setItem(LS, JSON.stringify(state)); return true; } catch(e){ return false; }
 }
@@ -836,22 +916,33 @@ function backupJson(){ return JSON.stringify(state, null, 1); }
 function backupName(ext){ return "coverage-" + today() + "." + ext; }
 
 /* ---------- derived ---------- */
-var STAGE_CLASS = {
-  "Not Contacted":"p-grey", "Emailed":"p-amber", "Follow-Up 1":"p-slate", "Follow-Up 2":"p-slate",
-  "Replied":"p-brass", "Call Scheduled":"p-brass", "Call Done":"p-green",
-  "Thank-You Sent":"p-green", "Advocate":"p-green", "Dead":"p-red"
+var KIND_CLASS = {
+  "new":"p-grey", "outreach":"p-slate", "replied":"p-brass", "scheduled":"p-brass",
+  "met":"p-green", "won":"p-green", "dead":"p-red"
 };
-function stageClass(s){ return STAGE_CLASS[s] || "p-grey"; }
+function stageClass(name){
+  var kind = stageKind(name);
+  /* The first outreach stage is the cold send and the rest are bumps; keeping
+     them visually distinct is worth the one special case. */
+  if (kind === "outreach"){
+    var out = stagesOfKind("outreach");
+    return (out.length && out[0].name === name) ? "p-amber" : "p-slate";
+  }
+  return KIND_CLASS[kind] || "p-grey";
+}
 function staleDays(c){
-  var d = daysSince(c.lastContact);
-  if (c.stage === "Replied") return d === null ? 0 : d;
-  if (c.stage === "Emailed" || c.stage === "Follow-Up 1" || c.stage === "Follow-Up 2") return d;
+  var kind = stageKind(c.stage), d = daysSince(c.lastContact);
+  if (kind === "replied") return d === null ? 0 : d;
+  if (kind === "outreach") return d;
   return null;
 }
 function isStale(c){
-  if (c.stage === "Replied"){ var r = daysSince(c.lastContact); return r === null || r >= 1; }
+  if (stageKind(c.stage) === "replied"){
+    var r = daysSince(c.lastContact);
+    return r === null || r >= 1;
+  }
   var d = staleDays(c);
-  return d !== null && d >= (state.settings.bumpDays || 7);
+  return d !== null && d >= bumpDays();
 }
 /* Days past the scheduled next action: 0 is due today, positive is overdue,
    negative is still ahead. null when no date is set. */
@@ -860,16 +951,17 @@ function dueDays(c){
   return daysSince(c.nextDate);
 }
 function isDue(c){
-  if (c.stage === "Dead") return false;
+  if (stageKind(c.stage) === "dead") return false;
   var d = dueDays(c);
   return d !== null && d >= 0;
 }
 function needsAction(c){
-  if (c.stage === "Dead") return false;
+  var kind = stageKind(c.stage);
+  if (kind === "dead") return false;
   if (isDue(c)) return true;
-  if (c.stage === "Advocate") return false;
-  if (c.stage === "Not Contacted") return c.priority <= 2;
-  if (c.stage === "Replied") return true;
+  if (kind === "won") return false;
+  if (kind === "new") return c.priority <= 2;
+  if (kind === "replied") return true;
   return isStale(c);
 }
 function dueLabel(d){
@@ -881,6 +973,11 @@ function dueLabel(d){
   return "in " + (-d) + "d";
 }
 function firmContacts(fid){ return state.contacts.filter(function(c){ return c.firmId === fid; }); }
+function stageCount(name){
+  var n = 0;
+  state.contacts.forEach(function(c){ if (c.stage === name) n++; });
+  return n;
+}
 
 /* ---------- routing ---------- */
 var TABS = [["contacts","Contacts"],["firms","Firms"],["compose","Compose"],["settings","Settings"]];
@@ -919,7 +1016,8 @@ function viewContacts(v){
   cs.forEach(function(c){
     sent += c.touches || 0;
     if (c.replied) replied++;
-    if (c.callDate || c.stage === "Call Done" || c.stage === "Thank-You Sent" || c.stage === "Advocate") calls++;
+    var ck = stageKind(c.stage);
+    if (c.callDate || ck === "met" || ck === "won") calls++;
     if (c.referral) refs++;
     if (needsAction(c)) act++;
     if (isDue(c)) due++;
@@ -947,7 +1045,9 @@ function viewContacts(v){
 
   var sel = h("select");
   sel.appendChild(h("option",{value:"",text:"All stages"}));
-  state.stages.forEach(function(s){ sel.appendChild(h("option",{value:s,text:s,selected:ui.stage===s?"selected":null})); });
+  state.stages.forEach(function(st){
+    sel.appendChild(h("option",{value:st.name,text:st.name,selected:ui.stage===st.name?"selected":null}));
+  });
   sel.addEventListener("change", function(){ ui.stage = sel.value; drawRows(); });
   f.appendChild(sel);
 
@@ -1013,7 +1113,7 @@ function viewContacts(v){
       if (ui.firm && c.firmId !== ui.firm) return false;
       if (ui.needs && !needsAction(c)) return false;
       if (ui.due && !isDue(c)) return false;
-      if (!ui.stage && !ui.q && c.stage === "Dead") return false;
+      if (!ui.stage && !ui.q && stageKind(c.stage) === "dead") return false;
       if (s){
         var hay = (fullName(c) + " " + firmName(c.firmId) + " " + c.group + " " + c.connection + " " + c.title + " " + (c.tags||[]).join(" ")).toLowerCase();
         if (hay.indexOf(s) < 0) return false;
@@ -1023,7 +1123,7 @@ function viewContacts(v){
   }
   function sortRows(rows){
     var k = ui.sort, dir = ui.desc ? -1 : 1;
-    var STAGE_ORDER = state.stages;
+
     rows.sort(function(a,b){
       var r = 0;
       if (k === "auto"){
@@ -1037,7 +1137,7 @@ function viewContacts(v){
       else if (k === "name") r = fullName(a).localeCompare(fullName(b));
       else if (k === "firm") r = firmName(a.firmId).localeCompare(firmName(b.firmId));
       else if (k === "conn") r = (a.connection||"").localeCompare(b.connection||"");
-      else if (k === "stage") r = STAGE_ORDER.indexOf(a.stage) - STAGE_ORDER.indexOf(b.stage);
+      else if (k === "stage") r = stageIndex(a.stage) - stageIndex(b.stage);
       else if (k === "last") r = (Date.parse(a.lastContact||"1970-01-01")||0) - (Date.parse(b.lastContact||"1970-01-01")||0);
       else if (k === "next"){
         /* Soonest due first; anything without a date sorts to the end either way. */
@@ -1229,10 +1329,13 @@ function openContact(id, focusSel){
     /* stage rail */
     var fs0 = h("div",{class:"fieldset"},[h("div",{class:"lg",text:"Stage"})]);
     var rail = h("div",{class:"rail"});
-    state.stages.forEach(function(s){
-      rail.appendChild(h("button",{class: c.stage===s?"on":"", text:s, onclick:function(){
-        setStage(c, s); save(); openContact(id); render();
-      }}));
+    state.stages.forEach(function(st){
+      rail.appendChild(h("button",{class: c.stage===st.name?"on":"",
+        text:st.name, title:KIND_SET[st.kind] || st.kind,
+        "aria-pressed": c.stage===st.name ? "true" : "false",
+        onclick:function(){
+          setStage(c, st.name); save(); openContact(id); render();
+        }}));
     });
     fs0.appendChild(rail);
     body.appendChild(fs0);
@@ -1348,33 +1451,60 @@ function openContact(id, focusSel){
 }
 
 function bumpDays(){ return state.settings.bumpDays || 7; }
-function setStage(c, s){
-  c.stage = s;
-  if (s === "Emailed" || s === "Follow-Up 1" || s === "Follow-Up 2"){
+
+/* What landing on a stage does to the rest of the record. Keyed by kind, and by
+   position within the outreach and met runs, so a renamed or reordered pipeline
+   keeps working and an added bump stage behaves like the bumps around it. */
+function applyStageEffects(c, name){
+  var kind = stageKind(name);
+  if (kind === "outreach"){
+    var out = stagesOfKind("outreach");
+    var isLast = out.length > 1 && out[out.length - 1].name === name;
     c.lastContact = today();
-    c.nextAction = s === "Follow-Up 2" ? "Final bump sent — wait" : "Bump in " + bumpDays() + " days";
+    c.nextAction = isLast ? "Final bump sent — wait" : "Bump in " + bumpDays() + " days";
     c.nextDate = addDays(today(), bumpDays());
+  } else if (kind === "replied"){
+    c.replied = true; c.nextAction = "Propose call times"; c.nextDate = today();
+  } else if (kind === "scheduled"){
+    c.nextAction = "Prep questions for the call";
+    c.nextDate = c.callDate || c.nextDate;
+  } else if (kind === "met"){
+    var met = stagesOfKind("met");
+    if (met.length && met[0].name === name){
+      c.callDate = c.callDate || today();
+      c.nextAction = "Send thank-you"; c.nextDate = today();
+    } else {
+      c.lastContact = today();
+      c.nextAction = "Keep warm — check in next month"; c.nextDate = addDays(today(), 30);
+    }
+  } else if (kind === "won"){
+    c.referral = true; c.nextAction = ""; c.nextDate = "";
+  } else if (kind === "dead"){
+    c.nextAction = ""; c.nextDate = "";
+  } else if (kind === "new"){
+    c.nextAction = "Draft cold intro"; c.nextDate = "";
   }
-  if (s === "Replied"){ c.replied = true; c.nextAction = "Propose call times"; c.nextDate = today(); }
-  if (s === "Call Done"){ c.callDate = c.callDate || today(); c.nextAction = "Send thank-you"; c.nextDate = today(); }
-  if (s === "Thank-You Sent"){ c.lastContact = today(); c.nextAction = "Keep warm — check in next month"; c.nextDate = addDays(today(), 30); }
-  if (s === "Advocate"){ c.referral = true; c.nextAction = ""; c.nextDate = ""; }
-  if (s === "Dead"){ c.nextAction = ""; c.nextDate = ""; }
-  if (s === "Not Contacted"){ c.nextAction = "Draft cold intro"; c.nextDate = ""; }
 }
+function setStage(c, s){ c.stage = s; applyStageEffects(c, s); }
+
 function logEmail(c){
   c.touches = (c.touches||0) + 1;
   c.lastContact = today();
-  var order = ["Not Contacted","Emailed","Follow-Up 1","Follow-Up 2"];
-  var i = order.indexOf(c.stage);
-  if (i >= 0 && i < 3) c.stage = order[i+1];
-  else if (c.stage === "Replied" || c.stage === "Call Scheduled"){ /* keep */ }
-  else if (c.stage === "Call Done") c.stage = "Thank-You Sent";
-  if (c.stage === "Emailed" || c.stage === "Follow-Up 1") c.nextAction = "Bump in " + bumpDays() + " days";
-  else if (c.stage === "Follow-Up 2") c.nextAction = "Final bump sent — wait";
-  if (c.stage === "Emailed" || c.stage === "Follow-Up 1" || c.stage === "Follow-Up 2"){
-    c.nextDate = addDays(today(), bumpDays());
+  var was = c.stage, kind = stageKind(was);
+  var out = stagesOfKind("outreach");
+  if (kind === "new" || kind === ""){
+    if (out.length) c.stage = out[0].name;
+  } else if (kind === "outreach"){
+    var i = indexOfName(out, was);
+    if (i >= 0 && i + 1 < out.length) c.stage = out[i + 1].name;
+  } else if (kind === "met"){
+    var met = stagesOfKind("met");
+    var j = indexOfName(met, was);
+    if (j >= 0 && j + 1 < met.length) c.stage = met[j + 1].name;
   }
+  /* Replied and Call Scheduled keep whatever plan they are already on; an
+     outreach stage restates its bump even when logging a second send on it. */
+  if (c.stage !== was || stageKind(c.stage) === "outreach") applyStageEffects(c, c.stage);
 }
 function firmIdFor(name){
   name = (name||"").trim();
@@ -1830,12 +1960,69 @@ function viewSettings(v){
   }}));
   v.appendChild(c2);
 
-  v.appendChild(h("div",{class:"sectitle"},[h("h2",{text:"Stages"}),h("span",{class:"e",text:"rename or reorder — one per line"})]));
+  v.appendChild(h("div",{class:"sectitle"},[h("h2",{text:"Stages"}),
+    h("span",{class:"e",text:"rename, reorder, or add your own"})]));
   var c3 = h("div",{class:"setcard"});
-  c3.appendChild(field("Pipeline stages", state.stages.join("\n"), function(x){
-    var arr = x.split("\n").map(function(s){ return s.trim(); }).filter(Boolean);
-    if (arr.length){ state.stages = arr; save(); render(); }
-  }, {type:"textarea", wide:true}));
+  c3.appendChild(h("div",{class:"hint",style:"color:var(--muted)",
+    text:"Names are yours to change. What each stage does — when it starts the bump clock, when it counts as a reply, what falls out of the pipeline — comes from its kind, so renaming a stage keeps its behaviour and moves every contact on it with it."}));
+
+  function commitStages(){ save(); render(); }
+  function renameStage(from, to){
+    to = to.trim();
+    if (!to || to === from) return false;
+    if (stageIndex(to) >= 0){ toast("There is already a stage called “" + to + "”"); return false; }
+    var i = stageIndex(from);
+    if (i < 0) return false;
+    state.stages[i].name = to;
+    /* Move the contacts with it, which is the whole point: the old editor left
+       them stranded on a stage that no longer existed. */
+    var moved = 0;
+    state.contacts.forEach(function(c){ if (c.stage === from){ c.stage = to; moved++; } });
+    if (moved) toast("Renamed — moved " + moved + " contact" + (moved === 1 ? "" : "s"));
+    return true;
+  }
+
+  state.stages.forEach(function(st, i){
+    var row = h("div",{class:"stagerow"});
+    var nameIn = h("input",{type:"text",value:st.name,"aria-label":"Stage name"});
+    nameIn.addEventListener("change", function(){
+      if (!renameStage(st.name, nameIn.value)) { nameIn.value = st.name; return; }
+      commitStages();
+    });
+    var kindSel = h("select",{"aria-label":"What this stage means"});
+    STAGE_KINDS.forEach(function(k){
+      kindSel.appendChild(h("option",{value:k[0],text:k[1],selected:st.kind===k[0]?"selected":null}));
+    });
+    kindSel.addEventListener("change", function(){ st.kind = kindSel.value; commitStages(); });
+
+    var n = stageCount(st.name);
+    row.appendChild(nameIn);
+    row.appendChild(kindSel);
+    row.appendChild(h("span",{class:"count",text:n + (n === 1 ? " contact" : " contacts")}));
+    row.appendChild(h("button",{class:"btn ghost sm",text:"↑","aria-label":"Move " + st.name + " up",
+      disabled: i === 0 ? "disabled" : null,
+      onclick:function(){ if (i === 0) return;
+        var t = state.stages[i-1]; state.stages[i-1] = state.stages[i]; state.stages[i] = t; commitStages(); }}));
+    row.appendChild(h("button",{class:"btn ghost sm",text:"↓","aria-label":"Move " + st.name + " down",
+      disabled: i === state.stages.length - 1 ? "disabled" : null,
+      onclick:function(){ if (i === state.stages.length - 1) return;
+        var t = state.stages[i+1]; state.stages[i+1] = state.stages[i]; state.stages[i] = t; commitStages(); }}));
+    row.appendChild(h("button",{class:"btn ghost sm danger",text:"×","aria-label":"Delete " + st.name,
+      onclick:function(){
+        if (state.stages.length < 2){ toast("Keep at least one stage"); return; }
+        if (n){ toast("Move its " + n + " contact" + (n === 1 ? "" : "s") + " to another stage first"); return; }
+        state.stages.splice(i, 1); commitStages();
+      }}));
+    c3.appendChild(row);
+  });
+  c3.appendChild(h("div",{class:"filters"},[
+    h("button",{class:"btn",text:"+ New stage",onclick:function(){
+      var name = "New stage", n = 2;
+      while (stageIndex(name) >= 0) name = "New stage " + (n++);
+      state.stages.push({name:name, kind:"outreach"});
+      commitStages();
+    }})
+  ]));
   v.appendChild(c3);
 
   v.appendChild(h("div",{class:"sectitle"},[h("h2",{text:"Data"}),h("span",{class:"e",text:"backup and restore"})]));
