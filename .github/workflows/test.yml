@@ -1,0 +1,52 @@
+name: Tests
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  unit:
+    name: node --test (${{ matrix.tz }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    strategy:
+      fail-fast: false
+      matrix:
+        # The day-counting bug this suite guards against passed silently on a
+        # UTC runner and only showed up in a zone that observes DST, which is
+        # how it survived in the first place. Run both.
+        tz: ['UTC', 'America/New_York', 'Australia/Sydney']
+
+    env:
+      TZ: ${{ matrix.tz }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # No install step: the suite uses node:test and node:assert, and the only
+      # dependencies in this repo are the Electron build tools.
+      - name: Run unit tests
+        run: npm test
+
+      - name: Check the release build version matches its tag
+        if: startsWith(github.ref, 'refs/tags/v') && matrix.tz == 'UTC'
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          pkg="v$(node -p "require('./package.json').version")"
+          if [ "$pkg" != "$TAG" ]; then
+            echo "::error::package.json is $pkg but the tag is $TAG."
+            echo "The .dmg is named from package.json, so the release would ship"
+            echo "a file whose version disagrees with the tag it is attached to."
+            exit 1
+          fi
+          echo "package.json version matches the tag: $TAG"
