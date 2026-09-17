@@ -401,6 +401,103 @@ function assemble(meta, contacts, firms){
     firms: firms.list || []
   };
 }
+/* ---------- normalisation ----------
+   Anything that arrives from storage or a backup file is untrusted: an older
+   schema, a half-written record, a hand-edited export. Merge it over the seed
+   field by field instead of adopting it wholesale, so one missing key can never
+   take the whole render down. */
+function isObj(x){ return !!x && typeof x === "object" && !Array.isArray(x); }
+function asArr(x){ return Array.isArray(x) ? x : []; }
+function asStr(x){ return x == null ? "" : String(x); }
+function asInt(x, dflt){ var n = parseInt(x, 10); return isNaN(n) ? dflt : n; }
+function asDate(x){ return /^\d{4}-\d{2}-\d{2}$/.test(asStr(x)) ? asStr(x) : ""; }
+function overlay(base, over){
+  var out = {}, k;
+  for (k in base) out[k] = base[k];
+  if (isObj(over)) for (k in over) if (over[k] !== undefined && over[k] !== null) out[k] = over[k];
+  return out;
+}
+function normalizeNotes(x){
+  return asArr(x).map(function(n){
+    if (!isObj(n)) return null;
+    var t = asStr(n.t).trim();
+    return t ? {d: asDate(n.d) || today(), t: t} : null;
+  }).filter(Boolean);
+}
+function normalizeContact(c, seen){
+  if (!isObj(c)) return null;
+  var first = asStr(c.first), last = asStr(c.last);
+  if (!first && !last){
+    /* tolerate a single "name" column from a hand-made import */
+    var whole = asStr(c.name).trim();
+    if (!whole) return null;
+    var parts = whole.split(/\s+/);
+    first = parts[0]; last = parts.slice(1).join(" ");
+  }
+  var id = asStr(c.id);
+  if (!id || seen[id]) id = uid("c");
+  seen[id] = 1;
+  var prio = asInt(c.priority, 3);
+  return {
+    id: id, first: first, last: last, firmId: asStr(c.firmId),
+    title: asStr(c.title), group: asStr(c.group), office: asStr(c.office),
+    connection: asStr(c.connection), email: asStr(c.email),
+    emailConf: ["unknown","pattern","verified","bounced"].indexOf(asStr(c.emailConf)) >= 0 ? asStr(c.emailConf) : "unknown",
+    year: asStr(c.year), school: asStr(c.school), linkedin: asStr(c.linkedin),
+    stage: asStr(c.stage), priority: prio < 1 || prio > 3 ? 3 : prio,
+    lastContact: asDate(c.lastContact), nextAction: asStr(c.nextAction), nextDate: asDate(c.nextDate),
+    touches: Math.max(0, asInt(c.touches, 0)), replied: !!c.replied,
+    callDate: asDate(c.callDate), referral: !!c.referral,
+    tags: asArr(c.tags).map(asStr).filter(Boolean),
+    notes: normalizeNotes(c.notes)
+  };
+}
+function normalizeFirm(f, seen){
+  if (!isObj(f)) return null;
+  var name = asStr(f.name).trim();
+  if (!name) return null;
+  var id = asStr(f.id);
+  if (!id || seen[id]) id = uid("f");
+  seen[id] = 1;
+  return {
+    id: id, name: name, tier: asStr(f.tier), interest: Math.max(0, Math.min(5, asInt(f.interest, 0))),
+    difficulty: asStr(f.difficulty),
+    target: ["Yes","Maybe","No"].indexOf(asStr(f.target)) >= 0 ? asStr(f.target) : "Maybe",
+    emailPattern: asStr(f.emailPattern), hq: asStr(f.hq), groups: asStr(f.groups),
+    headcount: asStr(f.headcount), appStatus: asStr(f.appStatus) || "Not open",
+    opens: asDate(f.opens), deadline: asDate(f.deadline), superday: asDate(f.superday),
+    referral: !!f.referral, targetGroup: asStr(f.targetGroup), whyFirm: asStr(f.whyFirm),
+    deals: asStr(f.deals), sectors: asStr(f.sectors), alumni: asStr(f.alumni)
+  };
+}
+function normalizeTemplate(t, seen){
+  if (!isObj(t)) return null;
+  var id = asStr(t.id);
+  if (!id || seen[id]) id = uid("t");
+  seen[id] = 1;
+  return {id: id, name: asStr(t.name) || "Untitled", subject: asStr(t.subject),
+          body: asStr(t.body), customLine: asStr(t.customLine)};
+}
+function normalizeState(raw){
+  var src = isObj(raw) ? raw : {};
+  var cSeen = {}, fSeen = {}, tSeen = {};
+  var settings = overlay(SEED.settings, src.settings);
+  settings.bumpDays = Math.max(1, asInt(settings.bumpDays, 7));
+  settings.groups = asArr(settings.groups).map(asStr).filter(Boolean);
+  var stages = asArr(src.stages).map(asStr).filter(Boolean);
+  var templates = asArr(src.templates).map(function(t){ return normalizeTemplate(t, tSeen); }).filter(Boolean);
+  var out = {
+    profile: overlay(SEED.profile, src.profile),
+    settings: settings,
+    stages: stages.length ? stages : SEED.stages.slice(),
+    templates: templates.length ? templates : SEED.templates.slice(),
+    contacts: asArr(src.contacts).map(function(c){ return normalizeContact(c, cSeen); }).filter(Boolean),
+    firms: asArr(src.firms).map(function(f){ return normalizeFirm(f, fSeen); }).filter(Boolean)
+  };
+  out.contacts.forEach(function(c){ if (!c.stage) c.stage = out.stages[0]; });
+  return out;
+}
+
 function lsLoad(){
   try {
     var raw = localStorage.getItem(LS);
@@ -489,6 +586,53 @@ function toast(msg){
   document.body.appendChild(t);
   setTimeout(function(){ t.remove(); }, 2200);
 }
+
+/* ---------- backup ---------- */
+function download(name, text, mime){
+  try {
+    var blob = new Blob([text], {type: (mime || "text/plain") + ";charset=utf-8"});
+    var url = URL.createObjectURL(blob);
+    var a = h("a", {href: url, download: name});
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function(){ a.remove(); URL.revokeObjectURL(url); }, 0);
+    return true;
+  } catch(e){ return false; }
+}
+/* Clipboard writes reject whenever the document is not focused, which happens
+   often enough that a bare .then() meant a backup could silently not happen. */
+function copyText(text, okMsg){
+  function fallback(){
+    var ta = h("textarea");
+    ta.value = text;
+    ta.style.cssText = "position:fixed;top:-1000px;left:-1000px;opacity:0";
+    document.body.appendChild(ta);
+    ta.select();
+    var ok = false;
+    try { ok = document.execCommand("copy"); } catch(e){}
+    ta.remove();
+    toast(ok ? okMsg : "Could not copy \u2014 use Download instead");
+  }
+  if (!navigator.clipboard || !navigator.clipboard.writeText) return fallback();
+  navigator.clipboard.writeText(text).then(function(){ toast(okMsg); }, fallback);
+}
+function csvCell(x){ return '"' + String(x == null ? "" : x).replace(/"/g, '""') + '"'; }
+function contactsCsv(){
+  var head = ["Name","Firm","Title","Group","Office","Connection","Email","Stage","Priority",
+    "Last contact","Next action","Next action date","Touches","Replied","Referral","Notes"];
+  var lines = [head.map(csvCell).join(",")];
+  state.contacts.forEach(function(c){
+    lines.push([fullName(c), firmName(c.firmId), c.title, c.group, c.office, c.connection, c.email,
+      c.stage, "P" + c.priority, c.lastContact, c.nextAction, c.nextDate, c.touches,
+      c.replied ? "Yes" : "No", c.referral ? "Yes" : "No",
+      (c.notes||[]).map(function(n){ return n.d + ": " + n.t; }).join(" | ")
+    ].map(csvCell).join(","));
+  });
+  /* CRLF and a BOM so Excel opens the accented names and em dashes correctly. */
+  return "\ufeff" + lines.join("\r\n");
+}
+function backupJson(){ return JSON.stringify(state, null, 1); }
+function backupName(ext){ return "coverage-" + today() + "." + ext; }
 
 /* ---------- derived ---------- */
 var STAGE_CLASS = {
@@ -1364,48 +1508,65 @@ function viewSettings(v){
   }, {type:"textarea", wide:true}));
   v.appendChild(c3);
 
-  v.appendChild(h("div",{class:"sectitle"},[h("h2",{text:"Data"}),h("span",{class:"e",text:"backup"})]));
+  v.appendChild(h("div",{class:"sectitle"},[h("h2",{text:"Data"}),h("span",{class:"e",text:"backup and restore"})]));
   var c4 = h("div",{class:"setcard"});
   c4.appendChild(h("div",{class:"filters"},[
-    h("button",{class:"btn",text:"Copy all data as JSON",onclick:function(){
-      navigator.clipboard.writeText(JSON.stringify(state,null,1)).then(function(){ toast("Copied — paste somewhere safe"); });
+    h("button",{class:"btn primary",text:"Download JSON backup",onclick:function(){
+      if (download(backupName("json"), backupJson(), "application/json")) toast("Backup downloaded");
+      else copyText(backupJson(), "Download blocked \u2014 copied instead");
     }}),
-    h("button",{class:"btn",text:"Copy contacts as CSV",onclick:function(){
-      var head = ["Name","Firm","Title","Group","Office","Connection","Email","Stage","Priority","Last contact","Next action","Touches","Replied","Referral","Notes"];
-      var lines = [head.join(",")];
-      state.contacts.forEach(function(c){
-        var row = [fullName(c), firmName(c.firmId), c.title, c.group, c.office, c.connection, c.email,
-          c.stage, "P"+c.priority, c.lastContact, c.nextAction, c.touches, c.replied?"Yes":"No",
-          c.referral?"Yes":"No", (c.notes||[]).map(function(n){return n.d+": "+n.t;}).join(" | ")];
-        lines.push(row.map(function(x){ return '"' + String(x==null?"":x).replace(/"/g,'""') + '"'; }).join(","));
-      });
-      navigator.clipboard.writeText(lines.join("\n")).then(function(){ toast("CSV copied"); });
+    h("button",{class:"btn",text:"Download CSV",onclick:function(){
+      if (download(backupName("csv"), contactsCsv(), "text/csv")) toast("CSV downloaded");
+      else copyText(contactsCsv(), "Download blocked \u2014 copied instead");
+    }}),
+    h("span",{class:"spacer"}),
+    h("button",{class:"btn ghost sm",text:"Copy JSON",onclick:function(){
+      copyText(backupJson(), "Copied \u2014 paste somewhere safe");
+    }}),
+    h("button",{class:"btn ghost sm",text:"Copy CSV",onclick:function(){
+      copyText(contactsCsv(), "CSV copied");
     }})
   ]));
   c4.appendChild(h("div",{class:"hint",style:"color:var(--muted)",
-    text:"Your records live in this page's own private store, not in the page file — republishing the app never touches them. Copy a JSON backup before any big cleanup."}));
-  var imp = h("textarea",{placeholder:"Paste a JSON backup here\u2026"});
+    text:"Your records live only on this machine, in this app's own storage \u2014 nothing is uploaded anywhere. That also means clearing browser data, or reinstalling, takes them with it. Download a JSON backup regularly, and always before a big cleanup."}));
+
+  function restoreFrom(text, label){
+    var parsed;
+    try { parsed = JSON.parse(text); }
+    catch(e){ toast("That is not valid JSON"); return; }
+    if (!parsed || typeof parsed !== "object" || !Array.isArray(parsed.contacts) || !Array.isArray(parsed.firms)){
+      toast("Backup is missing its contacts or firms"); return;
+    }
+    if (!confirm("Replace all " + state.contacts.length + " contacts and " +
+      state.firms.length + " firms with " + parsed.contacts.length + " contacts and " +
+      parsed.firms.length + " firms" + (label ? " from " + label : "") +
+      "?\n\nThis cannot be undone. Download a backup first if you are unsure.")) return;
+    state = normalizeState(parsed);
+    written = {};
+    save(); render(); toast("Restored " + state.contacts.length + " contacts");
+  }
+
+  var fileIn = h("input",{type:"file",accept:"application/json,.json"});
+  fileIn.addEventListener("change", function(){
+    var file = fileIn.files && fileIn.files[0];
+    if (!file) return;
+    var rd = new FileReader();
+    rd.onload  = function(){ restoreFrom(String(rd.result), file.name); fileIn.value = ""; };
+    rd.onerror = function(){ toast("Could not read that file"); fileIn.value = ""; };
+    rd.readAsText(file);
+  });
+  c4.appendChild(h("div",{class:"f wide"},[
+    h("label",{text:"Restore from a backup file"}), fileIn,
+    h("div",{class:"hint",text:"Pick a coverage-*.json file you downloaded earlier."})
+  ]));
+
+  var imp = h("textarea",{placeholder:"\u2026or paste a JSON backup here"});
   imp.style.minHeight = "70px";
-  c4.appendChild(h("div",{class:"f wide"},[h("label",{text:"Restore from backup"}), imp]));
+  c4.appendChild(h("div",{class:"f wide"},[h("label",{text:"Restore from pasted text"}), imp]));
   c4.appendChild(h("div",{class:"filters"},[
     h("button",{class:"btn danger",text:"Replace all data",onclick:function(){
-      var parsed;
-      try { parsed = JSON.parse(imp.value); }
-      catch(e){ toast("That is not valid JSON"); return; }
-      if (!parsed || !Array.isArray(parsed.contacts) || !Array.isArray(parsed.firms)){
-        toast("Backup is missing its contacts or firms"); return;
-      }
-      if (!confirm("Replace all " + state.contacts.length + " contacts and " +
-        state.firms.length + " firms with " + parsed.contacts.length + " contacts and " +
-        parsed.firms.length + " firms? This cannot be undone.")) return;
-      state.contacts = parsed.contacts;
-      state.firms = parsed.firms;
-      if (parsed.profile) state.profile = parsed.profile;
-      if (parsed.settings) state.settings = parsed.settings;
-      if (parsed.stages && parsed.stages.length) state.stages = parsed.stages;
-      if (parsed.templates && parsed.templates.length) state.templates = parsed.templates;
-      written = {};
-      save(); render(); toast("Restored " + parsed.contacts.length + " contacts");
+      if (!imp.value.trim()){ toast("Paste a backup first, or use the file picker"); return; }
+      restoreFrom(imp.value, "");
     }})
   ]));
   v.appendChild(c4);
