@@ -669,11 +669,13 @@ function viewContacts(v){
       return;
     }
     rows.forEach(function(c){
-      var d = staleDays(c);
+      /* daysSince, not staleDays: staleDays is null outside the outreach stages,
+         and concatenating it produced a literal "nulld ago" in the table. */
+      var d = daysSince(c.lastContact);
       var lastCell;
-      if (!c.lastContact) lastCell = h("span",{class:"fresh",text:"—"});
+      if (d === null) lastCell = h("span",{class:"fresh",text:"—"});
       else if (isStale(c)) lastCell = h("span",{class:"stale",text:d + "d · stale"});
-      else lastCell = h("span",{class:"fresh",text:d === 0 ? "today" : d + "d ago"});
+      else lastCell = h("span",{class:"fresh",text:d === 0 ? "today" : d === 1 ? "yesterday" : d + "d ago"});
       var tr = h("tr",{onclick:function(){ openContact(c.id); }},[
         h("td",{},[h("span",{class:"dot d"+c.priority,title:"P"+c.priority})]),
         h("td",{class:"nm"},[document.createTextNode(fullName(c)), h("span",{class:"sub",text:(c.title||"—")})]),
@@ -808,7 +810,13 @@ function openContact(id){
     var guessRow = h("div",{class:"filters"});
     guessRow.appendChild(h("button",{class:"btn sm",text:"Guess from firm pattern",onclick:function(){
       var g = guessEmail(c);
-      if (!g){ toast("Set an email pattern on " + (firmName(c.firmId)||"the firm") + " first"); return; }
+      if (!g){
+        var fm = firm(c.firmId);
+        if (!c.first || !c.last) toast("Needs both a first and a last name");
+        else if (!fm || !fm.emailPattern) toast("Set an email pattern on " + (firmName(c.firmId)||"the firm") + " first");
+        else toast("\u201c" + fm.emailPattern + "\u201d is not a pattern \u2014 build it from first / last / f / l");
+        return;
+      }
       c.email = g; c.emailConf = "pattern"; save(); openContact(id);
     }}));
     if (f && f.emailPattern) guessRow.appendChild(h("span",{class:"count",text:f.emailPattern + "@"}));
@@ -907,17 +915,33 @@ function firmIdFor(name){
   state.firms.push(nf);
   return nf.id;
 }
+/* Substitute the placeholder tokens in one left-to-right pass over the *pattern*.
+   The old version chained four .replace() calls, so each one also rewrote text an
+   earlier one had just substituted in: "Paul Smith" against first.last came out as
+   "paus.smith", and "flast" never expanded its leading initial at all. */
+var EMAIL_TOKENS = /first|last|f|l/g;
+function emailLocalPart(pattern, first, last){
+  var pat = String(pattern||"").toLowerCase();
+  if (!pat) return "";
+  /* A pattern is built only from tokens and separators. Anything else is a sample
+     address rather than a pattern, and expanding it would hand every contact at the
+     firm the same wrong mailbox. */
+  var skeleton = pat.replace(EMAIL_TOKENS, "\u0000");
+  if (skeleton.indexOf("\u0000") < 0) return "";
+  if (/[a-z]/.test(skeleton)) return "";
+  var sub = {first: first, last: last, f: first.charAt(0), l: last.charAt(0)};
+  return pat.replace(EMAIL_TOKENS, function(m){ return sub[m]; });
+}
 function guessEmail(c){
   var f = firm(c.firmId); if (!f || !f.emailPattern) return "";
-  var dom = f.emailPattern.indexOf("@") >= 0 ? f.emailPattern.split("@")[1] : "";
-  var pat = f.emailPattern.split("@")[0];
+  var at = f.emailPattern.indexOf("@");
+  if (at < 0) return "";
+  var dom = f.emailPattern.slice(at + 1).trim();
   var fi = (c.first||"").toLowerCase().replace(/[^a-z]/g,"");
   var la = (c.last||"").toLowerCase().replace(/[^a-z]/g,"");
   if (!fi || !la || !dom) return "";
-  var local = pat
-    .replace(/first/g, fi).replace(/last/g, la)
-    .replace(/f\b/g, fi.charAt(0)).replace(/l\b/g, la.charAt(0));
-  return local + "@" + dom;
+  var local = emailLocalPart(f.emailPattern.slice(0, at), fi, la);
+  return local ? local + "@" + dom : "";
 }
 
 /* ================= ADD CONTACT ================= */
