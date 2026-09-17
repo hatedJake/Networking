@@ -2,7 +2,7 @@
   "name": "coverage",
   "productName": "Coverage",
   "version": "1.0.0",
-  "description": "Coverage — a local-first networking CRM",
+  "description": "Coverage \u2014 a local-first networking CRM",
   "private": true,
   "main": "electron/main.js",
   "scripts": {
@@ -17,13 +17,14 @@
   "build": {
     "appId": "com.hatedjake.coverage",
     "productName": "Coverage",
-    "copyright": "Copyright © 2026",
+    "copyright": "Copyright \u00a9 2026",
     "directories": {
       "buildResources": "build",
       "output": "dist"
     },
     "files": [
       "electron/**/*",
+      "fonts/**/*",
       "index.html",
       "package.json"
     ],
@@ -32,7 +33,10 @@
       "target": [
         {
           "target": "dmg",
-          "arch": ["arm64", "x64"]
+          "arch": [
+            "arm64",
+            "x64"
+          ]
         }
       ],
       "icon": "build/icon.png",
