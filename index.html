@@ -153,6 +153,19 @@ tbody tr{cursor:pointer}
 tbody tr:hover td{background:var(--hover)}
 tbody tr:last-child td{border-bottom:0}
 td.nm{font-weight:600}
+/* The row is clickable for the mouse; this button is what the keyboard and a
+   screen reader actually land on, so the table keeps its real row semantics. */
+.rowbtn{background:none;border:0;padding:0;margin:0;font:inherit;color:inherit;
+  font-weight:600;text-align:left;cursor:pointer}
+.rowbtn:hover{text-decoration:underline;text-underline-offset:2px}
+/* font: inherit does not carry text-transform or letter-spacing, and the UA
+   sheet resets them on buttons, so the column headings need them spelled out. */
+thead th .rowbtn{font-family:inherit;font-size:inherit;font-weight:inherit;
+  letter-spacing:inherit;text-transform:inherit;color:inherit}
+thead th.sortable .rowbtn{cursor:pointer}
+thead th .rowbtn:hover{text-decoration:none}
+.vh{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;
+  clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0}
 td .sub{display:block;font-size:.72rem;color:var(--faint);font-weight:400;
   font-family:"IBM Plex Mono",monospace;letter-spacing:.02em}
 td .sub.due{color:var(--crimson);font-weight:500}
@@ -597,7 +610,7 @@ window.addEventListener("beforeunload", function(e){
 });
 
 function toast(msg){
-  var t = h("div", {class:"toast", text:msg});
+  var t = h("div", {class:"toast", role:"status", "aria-live":"polite", text:msg});
   document.body.appendChild(t);
   setTimeout(function(){ t.remove(); }, 2200);
 }
@@ -796,14 +809,25 @@ function viewContacts(v){
   var cols = [["pri","Pri"],["name","Name"],["firm","Firm / Group"],["conn","Connection"],["stage","Stage"],["last","Last touch"],["next","Next action"]];
   var thead = h("thead"); var tr = h("tr");
   cols.forEach(function(c){
-    var th = h("th",{class:"sortable",onclick:function(){
-      if (ui.sort === c[0]) ui.desc = !ui.desc; else { ui.sort = c[0]; ui.desc = false; }
-      drawRows();
-    }});
-    th.appendChild(document.createTextNode(c[1]));
-    if (ui.sort === c[0]) th.appendChild(h("span",{class:"car",text: ui.desc ? " ▾" : " ▴"}));
+    var th = h("th",{class:"sortable",scope:"col",
+      "aria-sort": ui.sort === c[0] ? (ui.desc ? "descending" : "ascending") : "none",
+      onclick:function(){
+        if (ui.sort === c[0]) ui.desc = !ui.desc; else { ui.sort = c[0]; ui.desc = false; }
+        drawRows(); resortHead();
+      }});
+    th.appendChild(h("button",{class:"rowbtn",text:c[1],"aria-label":"Sort by " + c[1]}));
+    if (ui.sort === c[0]) th.appendChild(h("span",{class:"car","aria-hidden":"true",text: ui.desc ? " ▾" : " ▴"}));
     tr.appendChild(th);
   });
+  function resortHead(){
+    [].forEach.call(tr.children, function(th, i){
+      var on = ui.sort === cols[i][0];
+      th.setAttribute("aria-sort", on ? (ui.desc ? "descending" : "ascending") : "none");
+      var car = th.querySelector(".car");
+      if (car) car.remove();
+      if (on) th.appendChild(h("span",{class:"car","aria-hidden":"true",text: ui.desc ? " ▾" : " ▴"}));
+    });
+  }
   thead.appendChild(tr); tbl.appendChild(thead);
   var tbody = h("tbody"); tbl.appendChild(tbody);
   wrap.appendChild(tbl); v.appendChild(wrap);
@@ -871,9 +895,14 @@ function viewContacts(v){
       if (d === null) lastCell = h("span",{class:"fresh",text:"—"});
       else if (isStale(c)) lastCell = h("span",{class:"stale",text:d + "d · stale"});
       else lastCell = h("span",{class:"fresh",text:d === 0 ? "today" : d === 1 ? "yesterday" : d + "d ago"});
-      var tr = h("tr",{onclick:function(){ openContact(c.id); }},[
-        h("td",{},[h("span",{class:"dot d"+c.priority,title:"P"+c.priority})]),
-        h("td",{class:"nm"},[document.createTextNode(fullName(c)), h("span",{class:"sub",text:(c.title||"—")})]),
+      var open = function(){ openContact(c.id); };
+      var nameBtn = h("button",{class:"rowbtn",text:fullName(c),"data-rowkey":"c:" + c.id,
+        "aria-label":"Open " + fullName(c) + ", " + (firmName(c.firmId) || "no firm") + ", " + c.stage,
+        onclick:function(ev){ ev.stopPropagation(); open(); }});
+      var tr = h("tr",{onclick:open},[
+        h("td",{},[h("span",{class:"dot d"+c.priority,title:"P"+c.priority,"aria-hidden":"true"}),
+                   h("span",{class:"vh",text:"Priority "+c.priority})]),
+        h("td",{class:"nm"},[nameBtn, h("span",{class:"sub",text:(c.title||"—")})]),
         h("td",{},[document.createTextNode(firmName(c.firmId) || "—"), h("span",{class:"sub",text:c.group||""})]),
         h("td",{},[document.createTextNode(c.connection || "—")]),
         h("td",{},[h("span",{class:"pill "+stageClass(c.stage),text:c.stage})]),
@@ -889,12 +918,84 @@ function viewContacts(v){
   drawRows();
 }
 
-/* ================= CONTACT DRAWER ================= */
-function closeLayer(){ clear($("layer")); }
-function drawer(title, sub, bodyBuild, footBuild){
-  var layer = $("layer"); clear(layer);
-  var scrim = h("div",{class:"scrim",onclick:closeLayer});
-  var d = h("div",{class:"drawer",role:"dialog","aria-modal":"true"});
+/* ================= LAYER: DRAWERS AND MODALS =================
+   Every mutation inside a drawer used to rebuild the whole panel from scratch,
+   which threw the reader back to the top of a long form on each stage click,
+   note added or email guessed. The layer is keyed by the record it is showing,
+   so a rebuild of the *same* record restores the scroll position and a switch
+   to a different one starts at the top. */
+var layerKey = null, layerOpener = null, layerOpenerKey = "";
+
+var FOCUSABLE = 'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),' +
+                'textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
+function focusables(root){
+  return [].slice.call(root.querySelectorAll(FOCUSABLE)).filter(function(el){
+    return el.offsetWidth > 0 || el.offsetHeight > 0 || el === document.activeElement;
+  });
+}
+function layerKeys(e){
+  var layer = $("layer");
+  var panel = layer.firstChild ? layer.querySelector(".drawer, .modal") : null;
+  if (!panel) return;
+  if (e.key === "Escape"){ e.preventDefault(); closeLayer(); return; }
+  if (e.key !== "Tab") return;
+  /* Keep Tab inside the dialog: without this it walked straight out into the
+     page behind the scrim, which is unreachable by mouse but not by keyboard. */
+  var items = focusables(panel);
+  if (!items.length){ e.preventDefault(); panel.focus(); return; }
+  var first = items[0], last = items[items.length - 1];
+  if (!panel.contains(document.activeElement)){
+    e.preventDefault(); (e.shiftKey ? last : first).focus(); return;
+  }
+  if (e.shiftKey && document.activeElement === first){ e.preventDefault(); last.focus(); }
+  else if (!e.shiftKey && document.activeElement === last){ e.preventDefault(); first.focus(); }
+}
+function closeLayer(){
+  var layer = $("layer");
+  if (!layer.firstChild) return;
+  clear(layer);
+  layerKey = null;
+  document.removeEventListener("keydown", layerKeys, true);
+  /* Send focus back where it came from, so closing a drawer does not dump the
+     caret at the top of the document. The element itself is often gone by now —
+     editing a contact re-renders the table underneath — so fall back to finding
+     its replacement by the row key. */
+  var back = (layerOpener && document.contains(layerOpener)) ? layerOpener : null;
+  if (!back && layerOpenerKey) back = document.querySelector('[data-rowkey="' + layerOpenerKey + '"]');
+  if (back){ try { back.focus(); } catch(e){} }
+  layerOpener = null; layerOpenerKey = "";
+}
+function openLayer(panel, key, focusSel){
+  var layer = $("layer");
+  var prevBody = layer.querySelector(".drawer-body, .modal-body");
+  var sameRecord = key != null && key === layerKey;
+  var keepScroll = (sameRecord && prevBody) ? prevBody.scrollTop : 0;
+  var hadFocusInside = layer.contains(document.activeElement);
+  if (!layer.firstChild){
+    layerOpener = document.activeElement;
+    layerOpenerKey = (layerOpener && layerOpener.getAttribute)
+      ? (layerOpener.getAttribute("data-rowkey") || "") : "";
+  }
+
+  clear(layer);
+  layerKey = (key == null ? null : key);
+  layer.appendChild(h("div",{class:"scrim",onclick:closeLayer}));
+  layer.appendChild(panel);
+
+  var scroller = panel.querySelector(".drawer-body, .modal-body");
+  if (scroller && keepScroll) scroller.scrollTop = keepScroll;
+
+  document.removeEventListener("keydown", layerKeys, true);
+  document.addEventListener("keydown", layerKeys, true);
+
+  var target = focusSel ? panel.querySelector(focusSel) : null;
+  if (!target && !sameRecord) target = panel;
+  if (!target && sameRecord && hadFocusInside) target = panel;
+  if (target){ try { target.focus(); } catch(e){} }
+}
+function drawer(title, sub, bodyBuild, footBuild, key, focusSel){
+  var d = h("div",{class:"drawer",role:"dialog","aria-modal":"true",
+                   "aria-label":title,tabindex:"-1"});
   var head = h("div",{class:"drawer-head"},[
     h("div",{},[h("h2",{text:title}), sub ? h("span",{class:"sub",text:sub}) : null]),
     h("button",{class:"xbtn",onclick:closeLayer,"aria-label":"Close",html:"&times;"})
@@ -903,13 +1004,8 @@ function drawer(title, sub, bodyBuild, footBuild){
   bodyBuild(body);
   d.appendChild(head); d.appendChild(body);
   if (footBuild){ var foot = h("div",{class:"drawer-foot"}); footBuild(foot); d.appendChild(foot); }
-  layer.appendChild(scrim); layer.appendChild(d);
-  armEsc();
+  openLayer(d, key, focusSel);
 }
-function escOnce(e){
-  if (e.key === "Escape"){ closeLayer(); document.removeEventListener("keydown", escOnce); }
-}
-function armEsc(){ document.removeEventListener("keydown", escOnce); document.addEventListener("keydown", escOnce); }
 
 function field(label, val, onchange, opts){
   opts = opts || {};
@@ -951,7 +1047,7 @@ function uniq(a){
   return r.sort();
 }
 
-function openContact(id){
+function openContact(id, focusSel){
   var c = contact(id); if (!c) return;
   var f = firm(c.firmId);
   drawer(fullName(c), [c.title, f ? f.name : "", c.group].filter(Boolean).join("  ·  "), function(body){
@@ -1044,13 +1140,13 @@ function openContact(id){
 
     /* notes */
     var fs4 = h("div",{class:"fieldset"},[h("div",{class:"lg",text:"Notes log"})]);
-    var ta = h("textarea",{placeholder:"What did they say? Deal they're on, group colour, what to ask next time…"});
+    var ta = h("textarea",{id:"note-input",placeholder:"What did they say? Deal they're on, group colour, what to ask next time…"});
     ta.style.minHeight = "62px";
     var addNote = h("button",{class:"btn sm",text:"Add note",onclick:function(){
       var t = ta.value.trim(); if(!t) return;
       c.notes = c.notes || [];
       c.notes.unshift({d: today(), t: t});
-      ta.value = ""; save(); openContact(id);
+      ta.value = ""; save(); openContact(id, "#note-input");
     }});
     fs4.appendChild(h("div",{class:"f wide"},[ta]));
     fs4.appendChild(h("div",{class:"filters"},[addNote]));
@@ -1075,7 +1171,7 @@ function openContact(id){
       state.contacts = state.contacts.filter(function(x){ return x.id !== c.id; });
       save(); closeLayer(); render();
     }}));
-  });
+  }, "c:" + id, focusSel);
 }
 
 function bumpDays(){ return state.settings.bumpDays || 7; }
@@ -1149,9 +1245,8 @@ function guessEmail(c){
 
 /* ================= ADD CONTACT ================= */
 function addContactForm(){
-  var layer = $("layer"); clear(layer);
-  var scrim = h("div",{class:"scrim",onclick:closeLayer});
-  var m = h("div",{class:"modal",role:"dialog","aria-modal":"true"});
+  var m = h("div",{class:"modal",role:"dialog","aria-modal":"true",
+                   "aria-label":"New contact",tabindex:"-1"});
   m.appendChild(h("div",{class:"modal-head"},[
     h("h2",{text:"New contact"}),
     h("button",{class:"xbtn",onclick:closeLayer,"aria-label":"Close",html:"&times;"})
@@ -1225,10 +1320,8 @@ function addContactForm(){
   foot.appendChild(h("span",{class:"spacer"}));
   foot.appendChild(h("button",{class:"btn ghost",text:"Cancel",onclick:closeLayer}));
   m.appendChild(foot);
-
-  layer.appendChild(scrim); layer.appendChild(m);
-  armEsc();
-  setTimeout(function(){ nameIn.focus(); }, 30);
+  openLayer(m, null, null);
+  nameIn.focus();
 }
 
 /* ================= FIRMS ================= */
@@ -1283,7 +1376,7 @@ function viewFirms(v){
   var tbl = h("table");
   var thead = h("thead"); var hr = h("tr");
   ["Firm","Tier","Interest","Difficulty","Target","Contacts","Replied","App status","Deadline"].forEach(function(c){
-    hr.appendChild(h("th",{text:c}));
+    hr.appendChild(h("th",{text:c,scope:"col"}));
   });
   thead.appendChild(hr); tbl.appendChild(thead);
   var tb = h("tbody"); tbl.appendChild(tb); wrap.appendChild(tbl); v.appendChild(wrap);
@@ -1314,8 +1407,13 @@ function viewFirms(v){
       var dlCell = !f2.deadline ? h("span",{class:"fresh",text:"—"})
         : h("span",{class: (dl !== null && dl <= 14 && dl >= 0) ? "stale" : "fresh",
             text: f2.deadline + (dl !== null && dl >= 0 && dl <= 30 ? " · " + dl + "d" : "")});
-      tb.appendChild(h("tr",{onclick:function(){ openFirm(f2.id); }},[
-        h("td",{class:"nm"},[document.createTextNode(f2.name), f2.hq ? h("span",{class:"sub",text:f2.hq}) : null]),
+      var openF = function(){ openFirm(f2.id); };
+      tb.appendChild(h("tr",{onclick:openF},[
+        h("td",{class:"nm"},[
+          h("button",{class:"rowbtn",text:f2.name,"aria-label":"Open " + f2.name,
+                      "data-rowkey":"f:" + f2.id,
+                      onclick:function(ev){ ev.stopPropagation(); openF(); }}),
+          f2.hq ? h("span",{class:"sub",text:f2.hq}) : null]),
         h("td",{},[document.createTextNode(f2.tier || "—")]),
         h("td",{},[f2.interest ? h("span",{class:"pill "+(f2.interest>=4?"p-brass":f2.interest>=3?"p-slate":"p-grey"),text:"★ "+f2.interest}) : document.createTextNode("—")]),
         h("td",{},[document.createTextNode(f2.difficulty || "—")]),
@@ -1392,7 +1490,7 @@ function openFirm(id){
       state.firms = state.firms.filter(function(x){ return x.id !== f.id; });
       save(); closeLayer(); render();
     }}));
-  });
+  }, "f:" + id);
 }
 
 /* ================= COMPOSE ================= */
