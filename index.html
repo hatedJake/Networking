@@ -438,6 +438,26 @@ td .sub.due{color:var(--crimson);font-weight:500}
 .note:hover .del{opacity:1}
 .note .del:hover{color:var(--crimson)}
 
+/* ============ interaction log ============ */
+.ixlist{display:flex;flex-direction:column;gap:0}
+.ix{padding:11px 0;border-bottom:1px solid var(--rule-soft);display:flex;gap:12px;align-items:flex-start}
+.ix:last-child{border-bottom:0}
+.ix .meta{flex:0 0 118px;display:flex;flex-direction:column;gap:5px;align-items:flex-start}
+.ix .d{font-family:"IBM Plex Mono",monospace;font-size:.68rem;color:var(--faint);letter-spacing:.03em}
+.ix .t{font-size:.89rem;white-space:pre-wrap;flex:1;min-width:0;word-break:break-word;padding-top:1px}
+.ix .acts{display:flex;gap:2px;opacity:0;flex:0 0 auto}
+.ix:hover .acts,.ix:focus-within .acts{opacity:1}
+.ix .acts button{background:none;border:0;color:var(--faint);font-size:.72rem;padding:2px 5px;
+  font-family:"IBM Plex Mono",monospace;letter-spacing:.06em;text-transform:uppercase;cursor:pointer;border-radius:3px}
+.ix .acts button:hover{background:var(--hover);color:var(--ink)}
+.ix .acts button.del:hover{color:var(--crimson)}
+.ixhead{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+@media (max-width:640px){
+  .ix{flex-wrap:wrap}
+  .ix .meta{flex-direction:row;align-items:center;flex-basis:100%}
+  .ix .acts{opacity:1}
+}
+
 /* ============ stage rail ============ */
 .rail{display:flex;flex-wrap:wrap;gap:5px}
 .rail button{
@@ -768,7 +788,7 @@ function copyText(text, okMsg){
   if (!navigator.clipboard || !navigator.clipboard.writeText) return fallback();
   navigator.clipboard.writeText(text).then(function(){ toast(okMsg); }, fallback);
 }
-function contactsCsv(){ return C.contactsCsv(state.contacts, firmName); }
+function contactsCsv(){ return C.contactsCsv(state.contacts, firmName, ctx()); }
 function backupJson(){ return JSON.stringify(state, null, 1); }
 function backupName(ext){ return "coverage-" + today() + "." + ext; }
 
@@ -784,6 +804,16 @@ function dueDays(c){ return C.dueDays(c, ctx()); }
 function isDue(c){ return C.isDue(c, ctx()); }
 function needsAction(c){ return C.needsAction(c, ctx()); }
 function dueLabel(d){ return C.dueLabel(d); }
+var IX_TYPES = C.IX_TYPES;
+function ixClass(t){ return C.ixClass(t); }
+function interactions(c){ return C.interactions(c); }
+function loggedCalls(c){ return C.loggedCalls(c); }
+function bareCalls(c){ return C.bareCalls(c, ctx()); }
+function callCount(c){ return C.callCount(c, ctx()); }
+function applyCall(c, date){ return C.applyCall(c, date, ctx()); }
+function firmCalls(fid){
+  return firmContacts(fid).reduce(function(n, c){ return n + callCount(c); }, 0);
+}
 function setStage(c, name){ return C.setStage(c, name, ctx()); }
 function logEmail(c){ return C.logEmail(c, ctx()); }
 function firmContacts(fid){ return state.contacts.filter(function(c){ return c.firmId === fid; }); }
@@ -838,8 +868,7 @@ function viewContacts(v){
   cs.forEach(function(c){
     sent += c.touches || 0;
     if (c.replied) replied++;
-    var ck = stageKind(c.stage);
-    if (c.callDate || ck === "met" || ck === "won") calls++;
+    calls += callCount(c);
     if (c.referral) refs++;
     if (needsAction(c)) act++;
     if (isDue(c)) due++;
@@ -848,7 +877,7 @@ function viewContacts(v){
   var rate = emailedPeople ? Math.round(replied / emailedPeople * 100) + "%" : "—";
 
   var kp = h("div", {class:"kpis"});
-  [[cs.length,"Contacts"],[sent,"Emails sent"],[rate,"Reply rate"],[calls,"Calls done"],[refs,"Referrals"]].forEach(function(k){
+  [[cs.length,"Contacts"],[sent,"Emails sent"],[rate,"Reply rate"],[calls,"Calls logged"],[refs,"Referrals"]].forEach(function(k){
     kp.appendChild(h("div",{class:"kpi"},[h("div",{class:"n",text:String(k[0])}),h("div",{class:"k",text:k[1]})]));
   });
   kp.appendChild(h("div",{class:"kpi" + (due ? " alert" : "")},[
@@ -937,7 +966,8 @@ function viewContacts(v){
       if (ui.due && !isDue(c)) return false;
       if (!ui.stage && !ui.q && stageKind(c.stage) === "dead") return false;
       if (s){
-        var hay = (fullName(c) + " " + firmName(c.firmId) + " " + c.group + " " + c.connection + " " + c.title + " " + (c.tags||[]).join(" ")).toLowerCase();
+        var hay = (fullName(c) + " " + firmName(c.firmId) + " " + c.group + " " + c.connection + " " +
+          c.title + " " + (c.tags||[]).join(" ") + " " + C.ixHaystack(c)).toLowerCase();
         if (hay.indexOf(s) < 0) return false;
       }
       return true;
@@ -986,10 +1016,13 @@ function viewContacts(v){
       /* daysSince, not staleDays: staleDays is null outside the outreach stages,
          and concatenating it produced a literal "nulld ago" in the table. */
       var d = daysSince(c.lastContact), dd = dueDays(c);
+      var ixn = (c.interactions||[]).length;
       var lastCell;
       if (d === null) lastCell = h("span",{class:"fresh",text:"—"});
       else if (isStale(c)) lastCell = h("span",{class:"stale",text:d + "d · stale"});
       else lastCell = h("span",{class:"fresh",text:d === 0 ? "today" : d === 1 ? "yesterday" : d + "d ago"});
+      var lastCol = [lastCell];
+      if (ixn) lastCol.push(h("span",{class:"sub",text: ixn + (ixn === 1 ? " interaction" : " interactions")}));
       var open = function(){ openContact(c.id); };
       var nameBtn = h("button",{class:"rowbtn",text:fullName(c),"data-rowkey":"c:" + c.id,
         "aria-label":"Open " + fullName(c) + ", " + (firmName(c.firmId) || "no firm") + ", " + c.stage,
@@ -1001,7 +1034,7 @@ function viewContacts(v){
         h("td",{},[document.createTextNode(firmName(c.firmId) || "—"), h("span",{class:"sub",text:c.group||""})]),
         h("td",{},[document.createTextNode(c.connection || "—")]),
         h("td",{},[h("span",{class:"pill "+stageClass(c.stage),text:c.stage})]),
-        h("td",{},[lastCell]),
+        h("td",{},lastCol),
         h("td",{},[
           document.createTextNode(c.nextAction || "—"),
           dd === null ? null : h("span",{class:"sub" + (dd >= 0 ? " due" : ""),text:dueLabel(dd)})
@@ -1019,7 +1052,7 @@ function viewContacts(v){
    note added or email guessed. The layer is keyed by the record it is showing,
    so a rebuild of the *same* record restores the scroll position and a switch
    to a different one starts at the top. */
-var layerKey = null, layerOpener = null, layerOpenerKey = "";
+var layerKey = null, layerOpener = null, layerOpenerKey = "", layerEsc = null;
 
 var FOCUSABLE = 'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),' +
                 'textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
@@ -1032,7 +1065,14 @@ function layerKeys(e){
   var layer = $("layer");
   var panel = layer.firstChild ? layer.querySelector(".drawer, .modal") : null;
   if (!panel) return;
-  if (e.key === "Escape"){ e.preventDefault(); closeLayer(); return; }
+  if (e.key === "Escape"){
+    e.preventDefault();
+    /* A panel opened over another one steps back to it rather than dismissing
+       the lot, so Escape out of the interaction form returns to the contact. */
+    var back = layerEsc;
+    if (back){ layerEsc = null; back(); } else closeLayer();
+    return;
+  }
   if (e.key !== "Tab") return;
   /* Keep Tab inside the dialog: without this it walked straight out into the
      page behind the scrim, which is unreachable by mouse but not by keyboard. */
@@ -1049,7 +1089,7 @@ function closeLayer(){
   var layer = $("layer");
   if (!layer.firstChild) return;
   clear(layer);
-  layerKey = null;
+  layerKey = null; layerEsc = null;
   document.removeEventListener("keydown", layerKeys, true);
   /* Send focus back where it came from, so closing a drawer does not dump the
      caret at the top of the document. The element itself is often gone by now —
@@ -1060,7 +1100,7 @@ function closeLayer(){
   if (back){ try { back.focus(); } catch(e){} }
   layerOpener = null; layerOpenerKey = "";
 }
-function openLayer(panel, key, focusSel){
+function openLayer(panel, key, focusSel, onEsc){
   var layer = $("layer");
   var prevBody = layer.querySelector(".drawer-body, .modal-body");
   var sameRecord = key != null && key === layerKey;
@@ -1080,6 +1120,7 @@ function openLayer(panel, key, focusSel){
   var scroller = panel.querySelector(".drawer-body, .modal-body");
   if (scroller && keepScroll) scroller.scrollTop = keepScroll;
 
+  layerEsc = onEsc || null;
   document.removeEventListener("keydown", layerKeys, true);
   document.addEventListener("keydown", layerKeys, true);
 
@@ -1171,11 +1212,75 @@ function openContact(id, focusSel){
       c.replied = true; c.stage = "Replied"; c.lastContact = today();
       c.nextAction = "Propose call times"; save(); openContact(id); render();
     }}));
+    qa.appendChild(h("button",{class:"btn sm",text:"Log call today",onclick:function(){
+      logInteractionForm(c.id, null, "Call");
+    }}));
     qa.appendChild(h("button",{class:"btn sm",text:"Compose →",onclick:function(){
       ui.composeTo = c.id; ui.draft = null; ssSet("cov.to", c.id);
       closeLayer(); go("compose");
     }}));
     body.appendChild(qa);
+
+    /* interaction log — what actually happened, as against the scratch notes */
+    var fsx = h("div",{class:"fieldset"});
+    var ixCount = h("span",{class:"count"});
+    fsx.appendChild(h("div",{class:"ixhead"},[
+      h("div",{class:"lg",text:"Interaction log"}),
+      ixCount,
+      h("span",{class:"spacer"}),
+      h("button",{class:"btn sm primary",text:"+ Log interaction",onclick:function(){
+        logInteractionForm(c.id, null);
+      }})
+    ]));
+    var ixList = h("div",{class:"ixlist"});
+    var ixAll = false;
+    function drawIx(){
+      clear(ixList);
+      var log = interactions(c);
+      ixCount.textContent = log.length ? log.length + " logged" : "";
+      if (!log.length){
+        ixList.appendChild(h("div",{class:"hint",
+          text:"Nothing logged yet \u2014 record a call, a text, or an email chain and it stays on their record."}));
+        return;
+      }
+      (ixAll ? log : log.slice(0, 5)).forEach(function(x){
+        ixList.appendChild(h("div",{class:"ix"},[
+          h("div",{class:"meta"},[
+            h("span",{class:"pill " + ixClass(x.type), text: x.type || "Other"}),
+            h("span",{class:"d", text: x.date || "\u2014"})
+          ]),
+          h("div",{class:"t", text: x.text || ""}),
+          h("div",{class:"acts"},[
+            h("button",{title:"Edit this entry",text:"Edit",
+              "aria-label":"Edit the " + (x.type||"interaction") + " from " + (x.date||"the log"),
+              onclick:function(){ logInteractionForm(c.id, x); }}),
+            h("button",{class:"del",title:"Delete this entry",text:"Delete",
+              "aria-label":"Delete the " + (x.type||"interaction") + " from " + (x.date||"the log"),
+              onclick:function(){
+                if (!confirm("Delete this " + (x.type||"interaction").toLowerCase() +
+                             " from " + (x.date||"the log") + "?")) return;
+                var wasCall = x.type === "Call";
+                c.interactions = (c.interactions||[]).filter(function(y){ return y !== x; });
+                save();
+                /* Dropping a call changes counts printed elsewhere in the drawer,
+                   so redraw the whole panel rather than just this list. */
+                if (wasCall) openContact(c.id); else drawIx();
+                render();
+              }})
+          ])
+        ]));
+      });
+      if (log.length > 5){
+        ixList.appendChild(h("div",{class:"filters",style:"margin:10px 0 0"},[
+          h("button",{class:"btn sm ghost",
+            text: ixAll ? "Show latest 5" : "Show all " + log.length,
+            onclick:function(){ ixAll = !ixAll; drawIx(); }})
+        ]));
+      }
+    }
+    drawIx();
+    fsx.appendChild(ixList);
+    body.appendChild(fsx);
 
     /* identity */
     var fs1 = h("div",{class:"fieldset"},[h("div",{class:"lg",text:"Who"})]);
@@ -1222,7 +1327,13 @@ function openContact(id, focusSel){
     g3.appendChild(field("Last contact", c.lastContact, function(v){ c.lastContact=v; save(); render(); }, {type:"date"}));
     g3.appendChild(field("Next action", c.nextAction, function(v){ c.nextAction=v; save(); render(); }, {wide:true, ph:"Draft cold intro"}));
     g3.appendChild(field("Next action date", c.nextDate, function(v){ c.nextDate=v; save(); }, {type:"date"}));
-    g3.appendChild(field("Call date", c.callDate, function(v){ c.callDate=v; save(); render(); }, {type:"date"}));
+    g3.appendChild(field("Last call date", c.callDate, function(v){ c.callDate=v; save(); render(); }, {type:"date"}));
+    var lg = loggedCalls(c);
+    g3.appendChild(field("Calls not in the log", bareCalls(c), function(v){
+      c.calls = Math.max(0, parseInt(v,10)||0); save(); openContact(id); render();
+    }, {type:"number", hint: lg
+      ? lg + (lg === 1 ? " call" : " calls") + " logged above \u00b7 " + callCount(c) + " in total"
+      : "Calls from before the log, or ones you would rather not write up"}));
     g3.appendChild(field("Touches", c.touches, function(v){ c.touches=parseInt(v,10)||0; save(); render(); }, {type:"number"}));
     g3.appendChild(field("Tags", (c.tags||[]).join(", "), function(v){ c.tags = v.split(",").map(function(x){return x.trim();}).filter(Boolean); save(); }, {wide:true, ph:"comma separated"}));
     fs3.appendChild(g3);
@@ -1288,6 +1399,94 @@ function guessEmail(c){
   return f ? C.guessEmail(c.first, c.last, f.emailPattern) : "";
 }
 
+/* ================= LOG AN INTERACTION =================
+   Opens over the contact drawer; Escape, Cancel and the close button all step
+   back to that contact rather than dismissing everything. `preset` starts a new
+   entry on a given type, which is what the "Log call today" button uses. */
+function logInteractionForm(cid, existing, preset){
+  var c = contact(cid); if (!c) return;
+  var editing = !!existing;
+  var vals = {
+    date: editing ? (existing.date || today()) : today(),
+    type: editing ? (existing.type || IX_TYPES[0]) : (preset || IX_TYPES[0]),
+    text: editing ? (existing.text || "") : "",
+    touch: !editing
+  };
+  function back(){ closeLayer(); openContact(cid); }
+
+  var m = h("div",{class:"modal",role:"dialog","aria-modal":"true",tabindex:"-1",
+                   "aria-label":(editing ? "Edit interaction with " : "Log an interaction with ") + fullName(c)});
+  m.appendChild(h("div",{class:"modal-head"},[
+    h("h2",{text: editing ? "Edit interaction" : "Log an interaction"}),
+    h("span",{class:"count",text: fullName(c)}),
+    h("span",{class:"spacer"}),
+    h("button",{class:"xbtn",onclick:back,"aria-label":"Back to contact",html:"&times;"})
+  ]));
+
+  var body = h("div",{class:"modal-body"});
+  var g = h("div",{class:"fgrid"});
+  var dateIn = h("input",{type:"date",value:vals.date});
+  dateIn.addEventListener("change", function(){ vals.date = dateIn.value; });
+  g.appendChild(h("div",{class:"f"},[h("label",{text:"Date"}), dateIn]));
+
+  var typeIn = h("select");
+  IX_TYPES.forEach(function(t){
+    typeIn.appendChild(h("option",{value:t,text:t,selected:vals.type===t?"selected":null}));
+  });
+  typeIn.addEventListener("change", function(){ vals.type = typeIn.value; });
+  g.appendChild(h("div",{class:"f"},[h("label",{text:"Type"}), typeIn]));
+  body.appendChild(g);
+
+  var ta = h("textarea",{id:"ix-text",
+    placeholder:"What did you talk about? What did they say, what did you promise, what to ask next time\u2026"});
+  ta.style.minHeight = "130px";
+  ta.value = vals.text;
+  ta.addEventListener("input", function(){ vals.text = ta.value; });
+  body.appendChild(h("div",{class:"f wide"},[h("label",{text:"What happened"}), ta]));
+
+  var cb = h("input",{type:"checkbox"});
+  cb.checked = vals.touch;
+  cb.addEventListener("change", function(){ vals.touch = cb.checked; });
+  body.appendChild(h("label",{class:"checkline"},[cb,
+    document.createTextNode("Move this contact\u2019s last touch to this date")]));
+  body.appendChild(h("div",{class:"hint",style:"color:var(--faint)",
+    text:"Last touch drives the stale flag and the needs-action count \u2014 leave this on unless you are backfilling an old conversation."}));
+  m.appendChild(body);
+
+  function commit(){
+    var t = vals.text.trim();
+    if (!t){ ta.focus(); toast("Say what happened first"); return false; }
+    if (!vals.date){ dateIn.focus(); toast("Pick a date"); return false; }
+    var wasCall = editing && existing.type === "Call";
+    if (editing){
+      existing.date = vals.date; existing.type = vals.type; existing.text = t;
+    } else {
+      c.interactions = c.interactions || [];
+      c.interactions.push({id: uid("ix"), date: vals.date, type: vals.type, text: t, logged: Date.now()});
+    }
+    if (vals.touch && (!c.lastContact || vals.date > c.lastContact)) c.lastContact = vals.date;
+    /* A newly logged call carries the contact to the call-happened stage and
+       sets the dates, exactly as the stage rail would. Editing one that was
+       already a call does not re-run that, or fixing a typo would drag the
+       stage backwards. */
+    if (vals.type === "Call" && !wasCall) applyCall(c, vals.date);
+    save();
+    return true;
+  }
+
+  var foot = h("div",{class:"modal-foot"});
+  foot.appendChild(h("button",{class:"btn primary",text: editing ? "Save changes" : "Log it",onclick:function(){
+    if (!commit()) return;
+    closeLayer(); openContact(cid); render();
+    toast(editing ? "Interaction updated" : vals.type + " logged \u2014 " + fullName(c));
+  }}));
+  foot.appendChild(h("span",{class:"spacer"}));
+  foot.appendChild(h("button",{class:"btn ghost",text:"Cancel",onclick:back}));
+  m.appendChild(foot);
+
+  openLayer(m, "ix:" + cid + ":" + (editing ? (existing.id || "edit") : "new"), "#ix-text", back);
+}
+
 /* ================= ADD CONTACT ================= */
 function addContactForm(){
   var m = h("div",{class:"modal",role:"dialog","aria-modal":"true",
@@ -1345,7 +1544,8 @@ function addContactForm(){
       connection: vals.conn, email: vals.email, emailConf: vals.email ? "pattern" : "unknown",
       year:"", school:"", linkedin:"", stage:"Not Contacted", priority: parseInt(vals.prio,10)||3,
       lastContact:"", nextAction:"Draft cold intro", nextDate:"", touches:0, replied:false,
-      callDate:"", referral:false, tags:[], notes: vals.note.trim() ? [{d:today(), t:vals.note.trim()}] : []
+      calls:0, callDate:"", referral:false, tags:[], interactions:[],
+      notes: vals.note.trim() ? [{d:today(), t:vals.note.trim()}] : []
     };
     state.contacts.push(c);
     save();
@@ -1378,10 +1578,12 @@ function viewFirms(v){
   var fs = state.firms;
   var tgt = fs.filter(function(f){ return f.target === "Yes"; });
   var covered = tgt.filter(function(f){ return firmContacts(f.id).length > 0; }).length;
-  var replied = tgt.filter(function(f){ return firmContacts(f.id).some(function(c){ return c.replied; }); }).length;
+  var spoken = tgt.filter(function(f){ return firmCalls(f.id) > 0; }).length;
+  var totalCalls = fs.reduce(function(n, f2){ return n + firmCalls(f2.id); }, 0);
 
   var kp = h("div",{class:"kpis"});
-  [[fs.length,"Firms"],[tgt.length,"Targets"],[covered+"/"+tgt.length,"Targets w/ contacts"],[replied,"Targets w/ replies"]].forEach(function(k){
+  [[fs.length,"Firms"],[tgt.length,"Targets"],[covered+"/"+tgt.length,"Targets w/ contacts"],
+   [spoken+"/"+tgt.length,"Targets w/ calls"],[totalCalls,"Calls logged"]].forEach(function(k){
     kp.appendChild(h("div",{class:"kpi"},[h("div",{class:"n",text:String(k[0])}),h("div",{class:"k",text:k[1]})]));
   });
   var gapN = tgt.length - covered;
@@ -1420,7 +1622,7 @@ function viewFirms(v){
   var wrap = h("div",{class:"tablewrap"});
   var tbl = h("table");
   var thead = h("thead"); var hr = h("tr");
-  ["Firm","Tier","Interest","Difficulty","Target","Contacts","Replied","App status","Deadline"].forEach(function(c){
+  ["Firm","Tier","Interest","Difficulty","Target","Contacts","Calls","App status","Deadline"].forEach(function(c){
     hr.appendChild(h("th",{text:c,scope:"col"}));
   });
   thead.appendChild(hr); tbl.appendChild(thead);
@@ -1446,7 +1648,7 @@ function viewFirms(v){
     if (!rows.length){ tb.appendChild(h("tr",{},[h("td",{colspan:"9"},[h("div",{class:"empty",text:"No firms match."})])])); return; }
     rows.forEach(function(f2){
       var cs = firmContacts(f2.id);
-      var rp = cs.filter(function(c){ return c.replied; }).length;
+      var fcalls = firmCalls(f2.id);
       var gap = f2.target === "Yes" && cs.length === 0;
       var dl = f2.deadline ? -daysSince(f2.deadline) : null;
       var dlCell = !f2.deadline ? h("span",{class:"fresh",text:"—"})
@@ -1464,7 +1666,9 @@ function viewFirms(v){
         h("td",{},[document.createTextNode(f2.difficulty || "—")]),
         h("td",{},[h("span",{class:"pill "+(f2.target==="Yes"?"p-green":f2.target==="Maybe"?"p-amber":"p-grey"),text:f2.target})]),
         h("td",{class:"num"},[gap ? h("span",{class:"stale",text:"0 · gap"}) : document.createTextNode(String(cs.length))]),
-        h("td",{class:"num"},[document.createTextNode(String(rp))]),
+        h("td",{class:"num"},[fcalls
+          ? h("span",{class:"pill p-green",text:String(fcalls)})
+          : h("span",{class:"fresh",text:"\u2014"})]),
         h("td",{},[document.createTextNode(f2.appStatus || "—")]),
         h("td",{},[dlCell])
       ]));
@@ -1515,12 +1719,17 @@ function openFirm(id){
     fs4.appendChild(field("Sector strengths", f.sectors, function(v){ f.sectors=v; save(); }, {type:"textarea", wide:true}));
     body.appendChild(fs4);
 
-    var fs5 = h("div",{class:"fieldset"},[h("div",{class:"lg",text:"Contacts here (" + cs.length + ")"})]);
+    var fcalls = firmCalls(f.id);
+    var fs5 = h("div",{class:"fieldset"},[h("div",{class:"lg",
+      text:"Contacts here (" + cs.length + ")" +
+           (fcalls ? "  \u00b7  " + fcalls + (fcalls === 1 ? " call" : " calls") : "")})]);
     if (!cs.length) fs5.appendChild(h("div",{class:"hint",text:"Nobody yet." + (f.target==="Yes" ? " This is a coverage gap." : "")}));
     cs.forEach(function(c){
       fs5.appendChild(h("div",{class:"gap"},[
         h("span",{class:"dot d"+c.priority}),
         h("span",{class:"fn",text:fullName(c) + (c.title ? "  ·  " + c.title : "")}),
+        callCount(c) ? h("span",{class:"pill p-green",
+          text:callCount(c) + (callCount(c) === 1 ? " call" : " calls")}) : null,
         h("span",{class:"pill "+stageClass(c.stage),text:c.stage}),
         h("button",{class:"btn sm ghost",text:"Open",onclick:function(){ openContact(c.id); }})
       ]));

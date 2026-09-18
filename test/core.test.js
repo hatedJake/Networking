@@ -336,16 +336,151 @@ test("contactsCsv carries a BOM, CRLF endings and every column", () => {
     first: "Ines", last: "Duarte", firmId: "f1", title: "Analyst", group: "Industrials",
     office: "NY", connection: "Club", email: "i@x.com", stage: "Emailed", priority: 2,
     lastContact: "2026-06-01", nextAction: "Bump", nextDate: "2026-06-08", touches: 1,
-    replied: false, referral: false, notes: [{ d: "2026-06-01", t: 'said "yes"' }]
-  }], () => "Houlihan Lokey");
+    replied: false, referral: false, calls: 1,
+    interactions: [{ type: "Call", date: "2026-06-02", text: "talked RX", logged: 1 }],
+    notes: [{ d: "2026-06-01", t: 'said "yes"' }]
+  }], () => "Houlihan Lokey", ctx());
   assert.equal(csv.charCodeAt(0), 0xFEFF, "BOM so Excel reads UTF-8");
   const rows = csv.slice(1).split("\r\n");
   assert.equal(rows.length, 2);
-  assert.equal(rows[0].split(",").length, 16);
+  assert.equal(rows[0].split(",").length, 18);
   assert.match(rows[1], /"Ines Duarte"/);
   assert.match(rows[1], /"Houlihan Lokey"/);
   assert.match(rows[1], /"2026-06-08"/, "next action date is exported");
+  assert.match(rows[1], /"2"/, "call total is the tally plus the log");
+  assert.match(rows[1], /2026-06-02 Call: talked RX/, "the log is exported");
   assert.match(rows[1], /said ""yes""/, "quotes escaped");
+});
+
+/* ------------------------------------------------- interaction log + calls */
+
+test("interactions sort newest first, ties broken by when they were logged", () => {
+  const c = { interactions: [
+    { date: "2026-06-01", text: "a", logged: 1 },
+    { date: "2026-06-10", text: "b", logged: 2 },
+    { date: "2026-06-10", text: "c", logged: 3 }
+  ] };
+  assert.deepEqual(C.interactions(c).map((x) => x.text), ["c", "b", "a"]);
+  assert.deepEqual(c.interactions.map((x) => x.text), ["a", "b", "c"], "input not mutated");
+});
+
+test("calls are the bare tally plus the logged ones, never double counted", () => {
+  const k = ctx();
+  const c = { stage: "Emailed", calls: 2, interactions: [
+    { type: "Call", text: "one" }, { type: "Text", text: "not a call" }, { type: "Call", text: "two" }
+  ] };
+  assert.equal(C.loggedCalls(c), 2);
+  assert.equal(C.bareCalls(c, k), 2);
+  assert.equal(C.callCount(c, k), 4);
+});
+
+test("a record from before the log reads one call rather than zero", () => {
+  const k = ctx();
+  assert.equal(C.impliedCalls({ stage: "Call Done" }, k), 1);
+  assert.equal(C.impliedCalls({ stage: "Advocate" }, k), 1);
+  assert.equal(C.impliedCalls({ stage: "Emailed", callDate: "2026-05-01" }, k), 1);
+  assert.equal(C.impliedCalls({ stage: "Emailed" }, k), 0);
+  // with no explicit tally, the implied one stands in
+  assert.equal(C.bareCalls({ stage: "Call Done" }, k), 1);
+  assert.equal(C.bareCalls({ stage: "Call Done", calls: 0 }, k), 0, "an explicit 0 wins");
+});
+
+test("normalizeState migrates the tally without counting a call twice", () => {
+  const out = C.normalizeState({
+    contacts: [
+      { first: "Pre", last: "Log", stage: "Call Done", callDate: "2026-05-01" },
+      { first: "Both", last: "Ways", stage: "Call Done", callDate: "2026-05-01",
+        interactions: [{ type: "Call", date: "2026-05-01", text: "the same call" }] },
+      { first: "Many", last: "Calls", stage: "Emailed",
+        interactions: [{ type: "Call", date: "2026-05-01", text: "a" },
+                       { type: "Call", date: "2026-05-02", text: "b" }] }
+    ], firms: []
+  }, { today: "2026-06-15" });
+  const k = ctx({ stages: out.stages });
+  const by = (n) => out.contacts.find((c) => c.first === n);
+  assert.equal(C.callCount(by("Pre"), k), 1, "inferred from the call date");
+  assert.equal(C.callCount(by("Both"), k), 1, "the logged call is not counted twice");
+  assert.equal(C.callCount(by("Many"), k), 2, "every logged call counts");
+});
+
+test("logging a call moves the contact to the call-happened stage", () => {
+  const k = ctx();
+  const c = { stage: "Emailed", lastContact: "2026-06-01", calls: 0, interactions: [] };
+  C.applyCall(c, "2026-06-15", k);
+  assert.equal(c.stage, "Call Done");
+  assert.equal(c.callDate, "2026-06-15");
+  assert.equal(c.replied, true);
+  assert.equal(c.lastContact, "2026-06-15");
+  assert.equal(c.nextAction, "Send thank-you");
+});
+
+test("backfilling an old call never drags dates or the stage backwards", () => {
+  const k = ctx();
+  const c = { stage: "Thank-You Sent", lastContact: "2026-06-10",
+              callDate: "2026-06-08", calls: 1, interactions: [] };
+  C.applyCall(c, "2026-05-01", k);
+  assert.equal(c.stage, "Thank-You Sent", "a later stage stays put");
+  assert.equal(c.callDate, "2026-06-08", "the newer call date stands");
+  assert.equal(c.lastContact, "2026-06-10", "last touch does not move back");
+});
+
+test("an advocate is not dragged back down the funnel by a catch-up call", () => {
+  const k = ctx();
+  const c = { stage: "Advocate", lastContact: "2026-06-01", calls: 1, interactions: [] };
+  C.applyCall(c, "2026-06-15", k);
+  assert.equal(c.stage, "Advocate");
+  assert.equal(c.lastContact, "2026-06-15", "but the touch date still moves forward");
+});
+
+test("reaching the call stage records one call without inflating on re-click", () => {
+  const k = ctx();
+  const c = { stage: "Replied", calls: 0, interactions: [] };
+  C.setStage(c, "Call Done", k);
+  assert.equal(C.callCount(c, k), 1, "the stage itself implies a call");
+  C.setStage(c, "Call Done", k);
+  C.setStage(c, "Call Done", k);
+  assert.equal(C.callCount(c, k), 1, "re-clicking does not add more");
+
+  // a contact whose call is already written up keeps exactly that one
+  const d = { stage: "Replied", calls: 0,
+              interactions: [{ type: "Call", date: "2026-06-10", text: "spoke" }] };
+  C.setStage(d, "Call Done", k);
+  assert.equal(C.callCount(d, k), 1, "the logged call is the call");
+});
+
+test("the log follows a renamed pipeline", () => {
+  const stages = [
+    { name: "Cold", kind: "new" }, { name: "Reached out", kind: "outreach" },
+    { name: "Spoke", kind: "met" }, { name: "Thanked", kind: "met" }
+  ];
+  const k = ctx({ stages });
+  const c = { stage: "Reached out", lastContact: "2026-06-01", calls: 0, interactions: [] };
+  C.applyCall(c, "2026-06-15", k);
+  assert.equal(c.stage, "Spoke", "the first call-happened stage, whatever it is called");
+  assert.equal(C.impliedCalls({ stage: "Thanked" }, k), 1);
+});
+
+test("normalizeState repairs a damaged interaction log", () => {
+  const out = C.normalizeState({
+    contacts: [{
+      first: "A", last: "B", stage: "Emailed", interactions: [
+        "junk", null, { text: "   " }, { type: "Call", text: "kept", date: "not-a-date" },
+        { type: "Invented type", text: "also kept", date: "2026-06-02" }
+      ]
+    }], firms: []
+  }, { today: "2026-06-15" });
+  const log = out.contacts[0].interactions;
+  assert.equal(log.length, 2, "entries with no text are dropped");
+  assert.equal(log[0].date, "2026-06-15", "a bad date falls back to today");
+  assert.equal(log[1].type, "Other", "an unknown type is normalised");
+  assert.ok(log[0].id, "every entry gets an id");
+});
+
+test("ixHaystack exposes the log to search", () => {
+  const c = { interactions: [{ type: "Coffee chat", text: "talked about the RX pipeline" }] };
+  assert.match(C.ixHaystack(c), /Coffee chat/);
+  assert.match(C.ixHaystack(c), /RX pipeline/);
+  assert.equal(C.ixHaystack({}), "");
 });
 
 /* --------------------------------------------------------- normalisation */

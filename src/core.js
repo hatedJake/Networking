@@ -182,6 +182,11 @@
       var met = stagesOfKind(ctx.stages, "met");
       if (met.length && met[0].name === name) {
         c.callDate = c.callDate || now;
+        c.replied = true;
+        /* Landing here means at least one call happened. Record it only when
+           neither the log nor the tally already holds one, so re-clicking the
+           stage never inflates the count. */
+        c.calls = callCount(c, ctx) === 0 ? 1 : bareCalls(c, ctx);
         c.nextAction = "Send thank-you"; c.nextDate = now;
       } else {
         c.lastContact = now;
@@ -220,6 +225,69 @@
     if (c.stage !== was || stageKind(ctx.stages, c.stage) === "outreach") {
       applyStageEffects(c, c.stage, ctx);
     }
+    return c;
+  }
+
+  /* ---------------- interaction log ----------------
+     A contact's record of what actually happened: calls, texts, coffee chats.
+     Separate from the notes list, which is scratch; these are dated events with
+     a type, and the Call ones feed the call counts below. */
+  var IX_TYPES = ["Call", "Text", "Email chain", "Coffee chat", "Meeting", "LinkedIn message", "Other"];
+  var IX_CLASS = {
+    "Call": "p-green", "Text": "p-brass", "Email chain": "p-amber", "Coffee chat": "p-slate",
+    "Meeting": "p-slate", "LinkedIn message": "p-grey", "Other": "p-grey"
+  };
+  function ixClass(t){ return IX_CLASS[t] || "p-grey"; }
+  /* Newest first. ISO dates sort lexicographically; ties break on when the entry
+     was logged, so two conversations on the same day keep their order. */
+  function interactions(c){
+    return (c.interactions || []).slice().sort(function (a, b) {
+      var r = String(b.date || "").localeCompare(String(a.date || ""));
+      return r !== 0 ? r : (b.logged || 0) - (a.logged || 0);
+    });
+  }
+  function ixHaystack(c){
+    return (c.interactions || [])
+      .map(function (x) { return (x.type || "") + " " + (x.text || ""); }).join(" ");
+  }
+
+  /* ---------------- calls ----------------
+     Counted in two places and summed, so writing a call up in the log and
+     keeping a bare tally never double-counts it:
+       - the log holds every call that has a date and what was said,
+       - c.calls holds the ones with no entry behind them: anything from before
+         the log existed, plus manual corrections. */
+  function loggedCalls(c){
+    return (c.interactions || []).filter(function (x) { return x.type === "Call"; }).length;
+  }
+  /* Records written before calls were counted carry only a call date and a
+     stage, so read one call out of those rather than showing them as zero. */
+  function impliedCalls(c, ctx){
+    var kind = stageKind(ctx.stages, c.stage);
+    return (c.callDate || kind === "met" || kind === "won") ? 1 : 0;
+  }
+  function bareCalls(c, ctx){
+    return typeof c.calls === "number" ? c.calls : impliedCalls(c, ctx);
+  }
+  function callCount(c, ctx){ return bareCalls(c, ctx) + loggedCalls(c); }
+
+  /* Where a call leaves the contact once it is recorded, however it was
+     recorded. A backfilled call is older than what is already on record, so
+     nothing here may move a date backwards. */
+  function applyCall(c, date, ctx){
+    var d = date || ctx.today;
+    var prevTouch = c.lastContact;
+    if (!c.callDate || d > c.callDate) c.callDate = d;
+    c.replied = true;
+
+    var kind = stageKind(ctx.stages, c.stage);
+    var met = stagesOfKind(ctx.stages, "met");
+    /* Someone already thanked, or an advocate, stays where they are: a catch-up
+       call should not drag them back down the funnel. */
+    var laterMet = kind === "met" && met.length && met[0].name !== c.stage;
+    if (kind !== "won" && !laterMet && met.length) setStage(c, met[0].name, ctx);
+
+    c.lastContact = (prevTouch && prevTouch > d) ? prevTouch : d;
     return c;
   }
 
@@ -283,14 +351,16 @@
   /* ---------------- CSV ---------------- */
   function csvCell(x) { return '"' + String(x == null ? "" : x).replace(/"/g, '""') + '"'; }
   var CSV_HEAD = ["Name", "Firm", "Title", "Group", "Office", "Connection", "Email", "Stage",
-    "Priority", "Last contact", "Next action", "Next action date", "Touches", "Replied",
-    "Referral", "Notes"];
-  function contactsCsv(contacts, firmName) {
+    "Priority", "Last contact", "Next action", "Next action date", "Touches", "Calls",
+    "Replied", "Referral", "Interactions", "Notes"];
+  function contactsCsv(contacts, firmName, ctx) {
     var lines = [CSV_HEAD.map(csvCell).join(",")];
     contacts.forEach(function (c) {
       lines.push([fullName(c), firmName(c.firmId), c.title, c.group, c.office, c.connection,
         c.email, c.stage, "P" + c.priority, c.lastContact, c.nextAction, c.nextDate, c.touches,
+        ctx ? callCount(c, ctx) : loggedCalls(c),
         c.replied ? "Yes" : "No", c.referral ? "Yes" : "No",
+        interactions(c).map(function (x) { return x.date + " " + x.type + ": " + x.text; }).join(" | "),
         (c.notes || []).map(function (n) { return n.d + ": " + n.t; }).join(" | ")
       ].map(csvCell).join(","));
     });
@@ -323,6 +393,20 @@
       return t ? { d: asDate(n.d) || now, t: t } : null;
     }).filter(Boolean);
   }
+  function normalizeInteraction(x, now) {
+    if (!isObj(x)) return null;
+    var text = asStr(x.text).trim();
+    if (!text) return null;
+    var type = IX_TYPES.indexOf(asStr(x.type)) >= 0 ? asStr(x.type) : "Other";
+    var logged = asInt(x.logged, 0);
+    return {
+      id: asStr(x.id) || uid("ix"),
+      date: asDate(x.date) || now,
+      type: type,
+      text: text,
+      logged: logged > 0 ? logged : 0
+    };
+  }
   function normalizeContact(c, seen, now) {
     if (!isObj(c)) return null;
     var first = asStr(c.first), last = asStr(c.last);
@@ -349,7 +433,12 @@
       nextDate: asDate(c.nextDate), touches: Math.max(0, asInt(c.touches, 0)),
       replied: !!c.replied, callDate: asDate(c.callDate), referral: !!c.referral,
       tags: asArr(c.tags).map(asStr).filter(Boolean),
-      notes: normalizeNotes(c.notes, now)
+      notes: normalizeNotes(c.notes, now),
+      interactions: asArr(c.interactions)
+        .map(function (x) { return normalizeInteraction(x, now); }).filter(Boolean),
+      /* null means "this record predates the tally"; normalizeState fills it in
+         once the stage kinds are known, so a pre-log call is not read as zero. */
+      calls: (c.calls == null || c.calls === "") ? null : Math.max(0, asInt(c.calls, 0))
     };
   }
   function normalizeFirm(f, seen) {
@@ -433,11 +522,17 @@
     var known = {};
     out.stages.forEach(function (st) { known[st.name] = 1; });
     out.contacts.forEach(function (c) {
-      if (!c.stage) { c.stage = out.stages[0].name; return; }
-      if (!known[c.stage]) {
+      if (!c.stage) { c.stage = out.stages[0].name; }
+      else if (!known[c.stage]) {
         out.stages.push({ name: c.stage, kind: LEGACY_KIND[c.stage] || "outreach" });
         known[c.stage] = 1;
       }
+    });
+    /* The bare tally only ever inherits calls the log does not already hold, so
+       a record migrated from before the log is not counted twice. */
+    var ctx = { stages: out.stages, bumpDays: out.settings.bumpDays, today: now };
+    out.contacts.forEach(function (c) {
+      if (c.calls === null) c.calls = Math.max(0, impliedCalls(c, ctx) - loggedCalls(c));
     });
     return out;
   }
@@ -471,6 +566,10 @@
     staleDays: staleDays, isStale: isStale, dueDays: dueDays, isDue: isDue,
     needsAction: needsAction, dueLabel: dueLabel,
     applyStageEffects: applyStageEffects, setStage: setStage, logEmail: logEmail,
+    // interaction log and calls
+    IX_TYPES: IX_TYPES, ixClass: ixClass, interactions: interactions, ixHaystack: ixHaystack,
+    loggedCalls: loggedCalls, impliedCalls: impliedCalls, bareCalls: bareCalls,
+    callCount: callCount, applyCall: applyCall,
     // email
     emailLocalPart: emailLocalPart, guessEmail: guessEmail,
     // templates
