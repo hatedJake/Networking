@@ -57,23 +57,48 @@ jobs:
         # Unsigned/ad-hoc build: there are no Developer ID certificates in this
         # repo, so tell electron-builder not to go looking for one.
         #
-        # --arm64 --x64 are load-bearing. Naming a target on the command line
-        # ("--mac dmg") overrides the whole mac.target block in package.json,
-        # including its arch list, so electron-builder quietly built only the
-        # host architecture. Every release published before this line was added
-        # contained an arm64 .dmg and nothing else, while the release notes told
-        # Intel users to download an -x64 file that was never produced.
+        # One architecture per invocation, on purpose. Naming a target on the
+        # command line ("--mac dmg") overrides the whole mac.target block in
+        # package.json including its arch list, so a bare "--mac dmg" silently
+        # built only the runner's own architecture — which is why every release
+        # before this contained an arm64 .dmg and nothing else while the notes
+        # told Intel users to download an -x64 file that was never produced.
+        # Passing --arm64 --x64 together fixes that but has both disk images
+        # mounted at once, and they race on detach:
+        #   ⨯ unable to execute hdiutil args=["detach","-quiet","/dev/disk4"]
+        # Building them one at a time, and moving each result out of dist/
+        # before the next starts, means only one volume is ever mounted.
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
-        run: npx --no-install electron-builder --mac dmg --arm64 --x64 --publish never
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          for arch in arm64 x64; do
+            ok=""
+            for attempt in 1 2 3; do
+              if npx --no-install electron-builder --mac dmg --"$arch" --publish never; then
+                ok=1
+                break
+              fi
+              echo "::warning::electron-builder failed for $arch (attempt $attempt of 3)"
+              hdiutil detach -force /Volumes/Coverage* 2>/dev/null || true
+              sleep 15
+            done
+            if [ -z "$ok" ]; then
+              echo "::error::Could not build the $arch .dmg after 3 attempts."
+              exit 1
+            fi
+            mv dist/*-"$arch".dmg out/
+          done
+          ls -lh out/*.dmg
 
       - name: List artifacts
         run: |
-          ls -lh dist/*.dmg
+          ls -lh out/*.dmg
           # Fail loudly rather than publishing a half-built release whose notes
           # advertise a download that is not attached to it.
           for arch in arm64 x64; do
-            if ! ls dist/*-"$arch".dmg >/dev/null 2>&1; then
+            if ! ls out/*-"$arch".dmg >/dev/null 2>&1; then
               echo "::error::No $arch .dmg was produced."
               exit 1
             fi
@@ -83,7 +108,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Coverage-dmg
-          path: dist/*.dmg
+          path: out/*.dmg
           if-no-files-found: error
 
       - name: Publish GitHub Release
@@ -121,9 +146,9 @@ jobs:
           NOTES
 
           if gh release view "$tag" >/dev/null 2>&1; then
-            gh release upload "$tag" dist/*.dmg --clobber
+            gh release upload "$tag" out/*.dmg --clobber
           else
-            gh release create "$tag" dist/*.dmg \
+            gh release create "$tag" out/*.dmg \
               --title "Coverage $tag" \
               --notes-file notes.md \
               --target "$GITHUB_SHA" \
