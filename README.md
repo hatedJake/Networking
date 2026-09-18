@@ -1,7 +1,8 @@
 # Coverage
 
 A local-first networking CRM for recruiting outreach — contacts, the firms
-behind them, where each conversation stands, and what you owe whom next.
+behind them, every conversation you have had, where each one stands, and what
+you owe whom next.
 
 Your records live only on the machine you are using, in the app's own storage.
 Nothing is uploaded anywhere, and the app makes no network requests at all: the
@@ -24,7 +25,7 @@ npm run dist   # build .dmg files into dist/ (macOS only)
 | Path | What it is |
 |---|---|
 | `index.html` | The whole interface: styles, markup, and the view layer |
-| `src/core.js` | Domain logic — dates, the stage machine, email patterns, merge fields, CSV, and the normalisation every load passes through |
+| `src/core.js` | Domain logic — dates, the stage machine, the interaction log and call counting, email patterns, merge fields, CSV, and the normalisation every load passes through |
 | `test/core.test.js` | The suite over `src/core.js` |
 | `electron/main.js` | The desktop wrapper |
 | `fonts/` | Vendored woff2 subsets, see `fonts/LICENSE.md` |
@@ -44,6 +45,24 @@ pasting. Do it before any big cleanup.
 
 The app keeps the last copy that parsed under a second key and falls back to it
 if the newest one is unreadable, but that is a seatbelt, not a backup.
+
+## The interaction log
+
+Each contact keeps a dated record of what actually happened — calls, texts,
+email chains, coffee chats, meetings — separate from the scratch notes. Entries
+are searchable, editable in place, and exported with the CSV.
+
+Logging a **Call** carries the contact to the call-happened stage and sets the
+dates for you, the same as moving the stage by hand would. Backfilling an old
+conversation never moves a date or a stage backwards, so catching up on records
+after the fact is safe.
+
+Calls are counted from two places and summed: the log, plus a bare tally for
+calls with no entry behind them (anything from before you started logging, or
+ones you would rather not write up). Writing a call up and keeping a count
+never counts it twice. Firms show the total across their contacts, which is why
+the Firms table counts calls rather than replies — a reply is a means, a call
+is the outcome.
 
 ## Pipeline stages
 
