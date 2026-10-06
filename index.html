@@ -593,22 +593,24 @@ var LS_PREV = "coverage.state.previous";   /* last copy that parsed cleanly */
 var flag = $("saveflag");
 function setFlag(txt, cls){ flag.textContent = txt; flag.className = cls || ""; }
 
-/* Three documents rather than one: each stays far under the per-document
+/* Several documents rather than one: each stays far under the per-document
    size cap as the contact list grows, and only what changed gets written. */
 function shard(st){
   return {
-    "app/meta":     {profile: st.profile, settings: st.settings, stages: st.stages, templates: st.templates},
-    "app/contacts": {list: st.contacts},
-    "app/firms":    {list: st.firms}
+    "app/meta":         {profile: st.profile, settings: st.settings, stages: st.stages, templates: st.templates},
+    "app/contacts":     {list: st.contacts},
+    "app/firms":        {list: st.firms},
+    "app/applications": {list: st.applications}
   };
 }
 var written = {};
 
-function assemble(meta, contacts, firms){
+function assemble(meta, contacts, firms, apps){
   return normalizeState({
     profile: meta.profile, settings: meta.settings,
     stages: meta.stages, templates: meta.templates,
-    contacts: contacts.list, firms: firms.list
+    contacts: contacts.list, firms: firms.list,
+    applications: apps ? apps.list : []
   });
 }
 /* ---------- stage vocabulary ----------
@@ -684,7 +686,8 @@ function boot(){
       return;
     }
     return Promise.all([
-      db.doc("app/meta").get(), db.doc("app/contacts").get(), db.doc("app/firms").get()
+      db.doc("app/meta").get(), db.doc("app/contacts").get(), db.doc("app/firms").get(),
+      db.doc("app/applications").get()
     ]).then(function(sn){
       if (sn[0].exists && sn[1].exists && sn[2].exists){
         if (dirty){
@@ -692,7 +695,9 @@ function boot(){
           ready = true; written = {};
           return writeAll().then(function(){ dirty = false; setFlag("saved"); });
         }
-        state = assemble(sn[0].data(), sn[1].data(), sn[2].data());
+        /* Applications came later, so a store written before them has no
+           fourth document; that reads as an empty list, not a fresh start. */
+        state = assemble(sn[0].data(), sn[1].data(), sn[2].data(), sn[3].exists ? sn[3].data() : null);
         markWritten();
         ready = true; setFlag("saved");
       } else {
@@ -817,6 +822,7 @@ function firmCalls(fid){
 function setStage(c, name){ return C.setStage(c, name, ctx()); }
 function logEmail(c){ return C.logEmail(c, ctx()); }
 function firmContacts(fid){ return state.contacts.filter(function(c){ return c.firmId === fid; }); }
+function firmApps(fid){ return state.applications.filter(function(a){ return a.firmId === fid; }); }
 function stageCount(name){
   var n = 0;
   state.contacts.forEach(function(c){ if (c.stage === name) n++; });
@@ -824,11 +830,12 @@ function stageCount(name){
 }
 
 /* ---------- routing ---------- */
-var TABS = [["contacts","Contacts"],["firms","Firms"],["compose","Compose"],["settings","Settings"]];
+var TABS = [["contacts","Contacts"],["firms","Firms"],["applications","Applications"],["compose","Compose"],["settings","Settings"]];
 var route = ssGet("cov.tab") || "contacts";
 var ui = {
   q:"", stage:"", prio:"", firm:"", needs:false, due:false, sort:"auto", desc:false,
   fq:"", ftarget:"", ftier:"", fgap:false,
+  aq:"", atype:"", astatus:"", afirm:"",
   composeTo: ssGet("cov.to"), composeTpl: "", draft:null
 };
 
@@ -849,6 +856,7 @@ function renderView(){
   var v = $("view"); clear(v);
   if (route === "contacts") viewContacts(v);
   else if (route === "firms") viewFirms(v);
+  else if (route === "applications") viewApplications(v);
   else if (route === "compose") viewCompose(v);
   else viewSettings(v);
 }
@@ -1740,11 +1748,247 @@ function openFirm(id){
     foot.appendChild(h("span",{class:"spacer"}));
     foot.appendChild(h("button",{class:"btn danger sm",text:"Delete firm",onclick:function(){
       if (firmContacts(f.id).length){ toast("Move or delete its contacts first"); return; }
+      if (firmApps(f.id).length){ toast("Delete its applications first"); return; }
       if (!confirm("Delete " + f.name + "?")) return;
       state.firms = state.firms.filter(function(x){ return x.id !== f.id; });
       save(); closeLayer(); render();
     }}));
   }, "f:" + id);
+}
+
+/* ================= APPLICATIONS =================
+   Entered by hand: what is open at a firm, what kind of thing it is, whether it
+   has gone in yet, and what it asks for. */
+var APP_TYPES = C.APP_TYPES, APP_STATUS = C.APP_STATUS, APP_MATERIALS = C.APP_MATERIALS;
+
+function viewApplications(v){
+  var as = state.applications, now = today();
+  var notYet = 0, prog = 0, done = 0, soon = 0;
+  as.forEach(function(a){
+    if (a.status === "Applied") done++;
+    else {
+      if (a.status === "In progress") prog++; else notYet++;
+      var d = C.appDaysLeft(a, now);
+      if (d !== null && d >= 0 && d <= 7) soon++;
+    }
+  });
+  var kp = h("div",{class:"kpis"});
+  [[as.length,"Tracked"],[notYet,"Not applied"],[prog,"In progress"],[done,"Applied"]].forEach(function(k){
+    kp.appendChild(h("div",{class:"kpi"},[h("div",{class:"n",text:String(k[0])}),h("div",{class:"k",text:k[1]})]));
+  });
+  kp.appendChild(h("div",{class:"kpi"+(soon?" alert":"")},[h("div",{class:"n",text:String(soon)}),h("div",{class:"k",text:"Due in 7 days"})]));
+  v.appendChild(kp);
+
+  var f = h("div",{class:"filters"});
+  var q = h("input",{type:"search",placeholder:"Search firm, program, notes…",value:ui.aq});
+  q.addEventListener("input", function(){ ui.aq = q.value; draw(); });
+  f.appendChild(q);
+  function pick(all, opts, key){
+    var s = h("select");
+    s.appendChild(h("option",{value:"",text:all}));
+    opts.forEach(function(o){
+      var val = Array.isArray(o) ? o[0] : o, txt = Array.isArray(o) ? o[1] : o;
+      s.appendChild(h("option",{value:val,text:txt,selected:ui[key]===val?"selected":null}));
+    });
+    s.addEventListener("change", function(){ ui[key] = s.value; draw(); });
+    f.appendChild(s);
+  }
+  pick("All types", APP_TYPES, "atype");
+  pick("All statuses", APP_STATUS, "astatus");
+  var used = {};
+  as.forEach(function(a){ if (firm(a.firmId)) used[a.firmId] = 1; });
+  pick("All firms", Object.keys(used).map(function(id){ return [id, firmName(id)]; })
+    .sort(function(a,b){ return a[1].localeCompare(b[1]); }), "afirm");
+  f.appendChild(h("span",{class:"spacer"}));
+  var cnt = h("span",{class:"count"}); f.appendChild(cnt);
+  f.appendChild(h("button",{class:"btn sm primary",text:"+ Application",onclick:function(){ appForm(null); }}));
+  v.appendChild(f);
+
+  var wrap = h("div",{class:"tablewrap"});
+  var tbl = h("table");
+  var thead = h("thead"); var hr = h("tr");
+  ["Firm","Type","Status","Materials needed","Deadline","Notes"].forEach(function(c){
+    hr.appendChild(h("th",{text:c,scope:"col"}));
+  });
+  thead.appendChild(hr); tbl.appendChild(thead);
+  var tb = h("tbody"); tbl.appendChild(tb); wrap.appendChild(tbl); v.appendChild(wrap);
+
+  function draw(){
+    clear(tb);
+    var s = ui.aq.trim().toLowerCase();
+    var rows = state.applications.filter(function(a){
+      if (ui.atype && a.type !== ui.atype) return false;
+      if (ui.astatus && a.status !== ui.astatus) return false;
+      if (ui.afirm && a.firmId !== ui.afirm) return false;
+      if (s){
+        var hay = (firmName(a.firmId) + " " + a.program + " " + a.type + " " + a.notes + " " +
+          a.materials.join(" ")).toLowerCase();
+        if (hay.indexOf(s) < 0) return false;
+      }
+      return true;
+    });
+    rows = C.sortApplications(rows, firmName, now);
+    cnt.textContent = rows.length + " of " + state.applications.length;
+    if (!rows.length){
+      tb.appendChild(h("tr",{},[h("td",{colspan:"6"},[h("div",{class:"empty",
+        text: state.applications.length ? "Nothing matches. Clear the filters."
+          : "Nothing tracked yet — add an application, an early insight program or a webinar."})])]));
+      return;
+    }
+    rows.forEach(function(a){
+      var d = C.appDaysLeft(a, now);
+      var open = a.status !== "Applied";
+      var dlCell = !a.deadline ? h("span",{class:"fresh",text:"—"})
+        : h("span",{class: (open && d !== null && d <= 7) ? "stale" : "fresh",
+            text: a.deadline + (open && d !== null
+              ? " · " + (d < 0 ? "passed" : d === 0 ? "today" : d + "d") : "")});
+      var openA = function(){ appForm(a); };
+      var nm = firmName(a.firmId) || "— no firm —";
+      var note = a.notes.replace(/\s+/g, " ").trim();
+      tb.appendChild(h("tr",{onclick:openA},[
+        h("td",{class:"nm"},[
+          h("button",{class:"rowbtn",text:nm,"data-rowkey":"a:" + a.id,
+            "aria-label":"Open " + nm + " " + (a.program || a.type) + ", " + a.status,
+            onclick:function(ev){ ev.stopPropagation(); openA(); }}),
+          a.program ? h("span",{class:"sub",text:a.program}) : null]),
+        h("td",{},[h("span",{class:"pill " + C.appTypeClass(a.type),text:a.type})]),
+        h("td",{},[h("span",{class:"pill " + C.appStatusClass(a.status),text:a.status})]),
+        h("td",{style:"white-space:normal;min-width:160px"},[document.createTextNode(a.materials.join(", ") || "—")]),
+        h("td",{},[dlCell]),
+        h("td",{style:"max-width:280px;overflow:hidden;text-overflow:ellipsis",title:a.notes},
+          [document.createTextNode(note || "—")])
+      ]));
+    });
+  }
+  draw();
+}
+
+/* One form for adding and editing. Nothing is written until Save, so Cancel on
+   a new entry leaves no half-filled row behind. */
+function appForm(existing){
+  var editing = !!existing;
+  var src = existing || {};
+  var vals = {
+    firmId: src.firmId || ui.afirm || "",
+    type: src.type || APP_TYPES[0],
+    status: src.status || APP_STATUS[0],
+    program: src.program || "",
+    deadline: src.deadline || "",
+    materials: (src.materials || []).slice(),
+    notes: src.notes || ""
+  };
+
+  var m = h("div",{class:"modal",role:"dialog","aria-modal":"true",tabindex:"-1",
+                   "aria-label": editing ? "Edit application" : "New application"});
+  m.appendChild(h("div",{class:"modal-head"},[
+    h("h2",{text: editing ? "Edit application" : "New application"}),
+    h("span",{class:"spacer"}),
+    h("button",{class:"xbtn",onclick:closeLayer,"aria-label":"Close",html:"&times;"})
+  ]));
+  var body = h("div",{class:"modal-body"});
+  var g = h("div",{class:"fgrid"});
+
+  var NEW_FIRM = "__new__";
+  var firmIn = h("select",{id:"app-firm"});
+  function fillFirms(){
+    clear(firmIn);
+    firmIn.appendChild(h("option",{value:"",text:"Choose a firm…"}));
+    state.firms.slice().sort(function(a,b){ return a.name.localeCompare(b.name); }).forEach(function(fm){
+      firmIn.appendChild(h("option",{value:fm.id,text:fm.name,selected:vals.firmId===fm.id?"selected":null}));
+    });
+    firmIn.appendChild(h("option",{value:NEW_FIRM,text:"+ Add a firm not on the list…"}));
+  }
+  fillFirms();
+  firmIn.addEventListener("change", function(){
+    if (firmIn.value !== NEW_FIRM){ vals.firmId = firmIn.value; return; }
+    var nm = (prompt("Firm name") || "").trim();
+    if (nm){ vals.firmId = firmIdFor(nm); save(); }
+    fillFirms();
+  });
+  g.appendChild(h("div",{class:"f"},[h("label",{text:"Firm"}), firmIn]));
+
+  function sel(label, list, key){
+    var s = h("select");
+    list.forEach(function(o){ s.appendChild(h("option",{value:o,text:o,selected:vals[key]===o?"selected":null})); });
+    s.addEventListener("change", function(){ vals[key] = s.value; });
+    g.appendChild(h("div",{class:"f"},[h("label",{text:label}), s]));
+  }
+  sel("Type", APP_TYPES, "type");
+  sel("Status", APP_STATUS, "status");
+
+  var progIn = h("input",{type:"text",value:vals.program,placeholder:"e.g. Summer Analyst — IBD (optional)"});
+  progIn.addEventListener("input", function(){ vals.program = progIn.value; });
+  g.appendChild(h("div",{class:"f"},[h("label",{text:"Program / role"}), progIn]));
+  var dlIn = h("input",{type:"date",value:vals.deadline});
+  dlIn.addEventListener("change", function(){ vals.deadline = dlIn.value; });
+  g.appendChild(h("div",{class:"f"},[h("label",{text:"Deadline / date"}), dlIn,
+    h("div",{class:"hint",text:"Optional — the deadline, or the day of the webinar"})]));
+  body.appendChild(g);
+
+  /* Materials: the usual ones as checkboxes, anything else typed in. */
+  var fsm = h("div",{class:"fieldset"},[h("div",{class:"lg",text:"Materials needed"})]);
+  var mg = h("div",{class:"fgrid",style:"grid-template-columns:repeat(auto-fit,minmax(150px,1fr))"});
+  function has(mt){
+    var l = mt.toLowerCase();
+    return vals.materials.some(function(x){ return x.toLowerCase() === l; });
+  }
+  APP_MATERIALS.forEach(function(mt){
+    var cb = h("input",{type:"checkbox"});
+    cb.checked = has(mt);
+    cb.addEventListener("change", function(){
+      vals.materials = vals.materials.filter(function(x){ return x.toLowerCase() !== mt.toLowerCase(); });
+      if (cb.checked) vals.materials.push(mt);
+    });
+    mg.appendChild(h("label",{class:"checkline"},[cb, document.createTextNode(mt)]));
+  });
+  fsm.appendChild(mg);
+  var isPreset = function(x){ return APP_MATERIALS.some(function(p){ return p.toLowerCase() === x.toLowerCase(); }); };
+  var otherIn = h("input",{type:"text",placeholder:"comma separated — e.g. Writing sample, Case study",
+    value: vals.materials.filter(function(x){ return !isPreset(x); }).join(", ")});
+  fsm.appendChild(h("div",{class:"f wide"},[h("label",{text:"Other materials"}), otherIn]));
+  body.appendChild(fsm);
+
+  var notesIn = h("textarea",{placeholder:"Who referred you, essay prompts, login details to find later, how the webinar went…"});
+  notesIn.style.minHeight = "96px";
+  notesIn.value = vals.notes;
+  notesIn.addEventListener("input", function(){ vals.notes = notesIn.value; });
+  body.appendChild(h("div",{class:"f wide"},[h("label",{text:"Notes"}), notesIn]));
+  m.appendChild(body);
+
+  function commit(){
+    if (!vals.firmId || !firm(vals.firmId)){ firmIn.focus(); toast("Pick a firm first"); return null; }
+    var mats = vals.materials.filter(isPreset);
+    otherIn.value.split(",").forEach(function(x){
+      x = x.trim();
+      if (x && !mats.some(function(y){ return y.toLowerCase() === x.toLowerCase(); })) mats.push(x);
+    });
+    var a = existing || {id: uid("a"), created: Date.now()};
+    a.firmId = vals.firmId; a.type = vals.type; a.status = vals.status;
+    a.program = vals.program.trim(); a.deadline = vals.deadline;
+    a.materials = mats; a.notes = vals.notes;
+    if (!editing) state.applications.push(a);
+    save();
+    return a;
+  }
+
+  var foot = h("div",{class:"modal-foot"});
+  foot.appendChild(h("button",{class:"btn primary",text: editing ? "Save changes" : "Save",onclick:function(){
+    var a = commit(); if (!a) return;
+    closeLayer(); render(); toast((editing ? "Updated " : "Added ") + firmName(a.firmId));
+  }}));
+  if (!editing) foot.appendChild(h("button",{class:"btn",text:"Save & add another",onclick:function(){
+    var a = commit(); if (!a) return;
+    render(); toast("Added " + firmName(a.firmId)); appForm(null);
+  }}));
+  foot.appendChild(h("span",{class:"spacer"}));
+  if (editing) foot.appendChild(h("button",{class:"btn danger sm",text:"Delete",onclick:function(){
+    if (!confirm("Delete this " + existing.type.toLowerCase() + " at " + (firmName(existing.firmId) || "this firm") + "?")) return;
+    state.applications = state.applications.filter(function(x){ return x !== existing; });
+    save(); closeLayer(); render();
+  }}));
+  foot.appendChild(h("button",{class:"btn ghost",text:"Cancel",onclick:closeLayer}));
+  m.appendChild(foot);
+  openLayer(m, editing ? "a:" + existing.id : null, editing ? null : "#app-firm");
 }
 
 /* ================= COMPOSE ================= */

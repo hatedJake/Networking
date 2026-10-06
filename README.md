@@ -25,7 +25,7 @@ npm run dist   # build .dmg files into dist/ (macOS only)
 | Path | What it is |
 |---|---|
 | `index.html` | The whole interface: styles, markup, and the view layer |
-| `src/core.js` | Domain logic — dates, the stage machine, the interaction log and call counting, email patterns, merge fields, CSV, and the normalisation every load passes through |
+| `src/core.js` | Domain logic — dates, the stage machine, the interaction log and call counting, applications, email patterns, merge fields, CSV, and the normalisation every load passes through |
 | `test/core.test.js` | The suite over `src/core.js` |
 | `electron/main.js` | The desktop wrapper |
 | `fonts/` | Vendored woff2 subsets, see `fonts/LICENSE.md` |
@@ -63,6 +63,16 @@ ones you would rather not write up). Writing a call up and keeping a count
 never counts it twice. Firms show the total across their contacts, which is why
 the Firms table counts calls rather than replies — a reply is a means, a call
 is the outcome.
+
+## Applications
+
+The Applications tab tracks what is open at each firm — applications, early
+insight programs and virtual webinars — entered by hand. Each entry has a firm
+(picked from your Firms list, or added from the dropdown), a type, a status
+(not applied, in progress, applied), the materials it asks for (resume, cover
+letter, HireVue, essays and the like, plus anything you type in), an optional
+program name and deadline, and notes. Open ones with the nearest deadline sort
+to the top. A firm with applications on it cannot be deleted until they are.
 
 ## Pipeline stages
 

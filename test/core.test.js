@@ -578,3 +578,44 @@ test("normalizeState overlays the seed rather than replacing it", () => {
   assert.equal(out.settings.bumpDays, 1, "a zero bump interval is raised to 1");
   assert.equal(out.templates.length, 1, "seed templates used when none supplied");
 });
+
+test("applications normalise to known types, statuses and a clean materials list", () => {
+  const out = C.normalizeState({
+    contacts: [], firms: [],
+    applications: [
+      { id: "a1", firmId: "f1", type: "Early insight program", status: "Applied",
+        materials: ["Resume", "resume", " HireVue ", "", 7], deadline: "2026-10-20", notes: "n" },
+      { firmId: "f2", type: "Bake sale", status: "Maybe?", deadline: "next week" },
+      "not an application"
+    ]
+  }, { today: "2026-10-06" });
+  assert.equal(out.applications.length, 2, "junk entries dropped");
+  const [a, b] = out.applications;
+  assert.equal(a.type, "Early insight program");
+  assert.equal(a.status, "Applied");
+  assert.deepEqual(a.materials, ["Resume", "HireVue", "7"], "trimmed, deduped case-insensitively");
+  assert.equal(b.type, "Other", "unknown type falls back to Other");
+  assert.equal(b.status, "Not applied", "unknown status falls back to not applied");
+  assert.equal(b.deadline, "", "an unparseable deadline is cleared");
+  assert.ok(b.id, "a missing id is minted");
+});
+
+test("a backup from before applications existed loads with an empty list", () => {
+  const out = C.normalizeState({ contacts: [], firms: [] });
+  assert.deepEqual(out.applications, []);
+});
+
+test("applications sort open ones first, soonest deadline first, undated last", () => {
+  const now = "2026-10-06";
+  const names = { f1: "Alpha", f2: "Beta" };
+  const apps = [
+    { id: "done", firmId: "f1", status: "Applied", deadline: "2026-10-07" },
+    { id: "undated", firmId: "f1", status: "Not applied", deadline: "" },
+    { id: "later", firmId: "f2", status: "In progress", deadline: "2026-11-01" },
+    { id: "soon", firmId: "f2", status: "Not applied", deadline: "2026-10-09" }
+  ];
+  const order = C.sortApplications(apps, (id) => names[id], now).map((a) => a.id);
+  assert.deepEqual(order, ["soon", "later", "undated", "done"]);
+  assert.equal(C.appDaysLeft(apps[3], now), 3);
+  assert.equal(C.appDaysLeft(apps[1], now), null);
+});

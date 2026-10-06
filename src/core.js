@@ -291,6 +291,40 @@
     return c;
   }
 
+  /* ---------------- applications ----------------
+     A separate tracker from the contacts: what is open at each firm, what kind
+     of thing it is, whether it has gone in yet, and what it asks for. Entered
+     by hand, keyed to a firm. */
+  var APP_TYPES = ["Application", "Early insight program", "Virtual webinar", "Other"];
+  var APP_STATUS = ["Not applied", "In progress", "Applied"];
+  var APP_MATERIALS = ["Resume", "Cover letter", "HireVue", "Essays", "Online assessment", "Transcript"];
+  var APP_TYPE_CLASS = {
+    "Application": "p-brass", "Early insight program": "p-slate",
+    "Virtual webinar": "p-grey", "Other": "p-grey"
+  };
+  var APP_STATUS_CLASS = { "Not applied": "p-amber", "In progress": "p-slate", "Applied": "p-green" };
+  function appTypeClass(t){ return APP_TYPE_CLASS[t] || "p-grey"; }
+  function appStatusClass(s){ return APP_STATUS_CLASS[s] || "p-grey"; }
+  /* Days until the deadline: 0 is today, negative has passed, null when unset. */
+  function appDaysLeft(a, now){
+    return a.deadline ? daysBetween(now, a.deadline) : null;
+  }
+  /* Soonest deadline first, undated ones after; then anything not yet in
+     ahead of what is done, then by firm. */
+  function sortApplications(apps, firmName, now){
+    return apps.slice().sort(function (a, b) {
+      var da = appDaysLeft(a, now), db = appDaysLeft(b, now);
+      var pa = a.status === "Applied" ? 1 : 0, pb = b.status === "Applied" ? 1 : 0;
+      if (pa !== pb) return pa - pb;
+      if (da !== db){
+        if (da === null) return 1;
+        if (db === null) return -1;
+        return da - db;
+      }
+      return String(firmName(a.firmId)).localeCompare(String(firmName(b.firmId)));
+    });
+  }
+
   /* ---------------- email patterns ----------------
      One left-to-right pass over the pattern. Chaining .replace() calls meant
      each one also rewrote text an earlier one had substituted in: any name
@@ -407,6 +441,26 @@
       logged: logged > 0 ? logged : 0
     };
   }
+  function normalizeApplication(a, seen, now) {
+    if (!isObj(a)) return null;
+    var id = asStr(a.id);
+    if (!id || seen[id]) id = uid("a");
+    seen[id] = 1;
+    var mats = [], got = {};
+    asArr(a.materials).forEach(function (m) {
+      m = asStr(m).trim();
+      if (m && !got[m.toLowerCase()]) { got[m.toLowerCase()] = 1; mats.push(m); }
+    });
+    var created = asInt(a.created, 0);
+    return {
+      id: id, firmId: asStr(a.firmId),
+      type: APP_TYPES.indexOf(asStr(a.type)) >= 0 ? asStr(a.type) : "Other",
+      status: APP_STATUS.indexOf(asStr(a.status)) >= 0 ? asStr(a.status) : "Not applied",
+      program: asStr(a.program), deadline: asDate(a.deadline),
+      materials: mats, notes: asStr(a.notes),
+      created: created > 0 ? created : 0
+    };
+  }
   function normalizeContact(c, seen, now) {
     if (!isObj(c)) return null;
     var first = asStr(c.first), last = asStr(c.last);
@@ -491,7 +545,7 @@
     var seed = opts.seed || {};
     var now = opts.today || today();
     var src = isObj(raw) ? raw : {};
-    var cSeen = {}, fSeen = {}, tSeen = {};
+    var cSeen = {}, fSeen = {}, tSeen = {}, aSeen = {};
 
     var settings = overlay(seed.settings || {}, src.settings);
     settings.bumpDays = Math.max(1, asInt(settings.bumpDays, 7));
@@ -513,7 +567,9 @@
       contacts: asArr(src.contacts)
         .map(function (c) { return normalizeContact(c, cSeen, now); }).filter(Boolean),
       firms: asArr(src.firms)
-        .map(function (f) { return normalizeFirm(f, fSeen); }).filter(Boolean)
+        .map(function (f) { return normalizeFirm(f, fSeen); }).filter(Boolean),
+      applications: asArr(src.applications)
+        .map(function (a) { return normalizeApplication(a, aSeen, now); }).filter(Boolean)
     };
 
     /* Never leave a contact pointing at a stage the pipeline does not have:
@@ -570,6 +626,11 @@
     IX_TYPES: IX_TYPES, ixClass: ixClass, interactions: interactions, ixHaystack: ixHaystack,
     loggedCalls: loggedCalls, impliedCalls: impliedCalls, bareCalls: bareCalls,
     callCount: callCount, applyCall: applyCall,
+    // applications
+    APP_TYPES: APP_TYPES, APP_STATUS: APP_STATUS, APP_MATERIALS: APP_MATERIALS,
+    appTypeClass: appTypeClass, appStatusClass: appStatusClass,
+    appDaysLeft: appDaysLeft, sortApplications: sortApplications,
+    normalizeApplication: normalizeApplication,
     // email
     emailLocalPart: emailLocalPart, guessEmail: guessEmail,
     // templates
