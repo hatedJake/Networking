@@ -343,7 +343,7 @@ test("contactsCsv carries a BOM, CRLF endings and every column", () => {
   assert.equal(csv.charCodeAt(0), 0xFEFF, "BOM so Excel reads UTF-8");
   const rows = csv.slice(1).split("\r\n");
   assert.equal(rows.length, 2);
-  assert.equal(rows[0].split(",").length, 18);
+  assert.equal(rows[0].split(",").length, 20);
   assert.match(rows[1], /"Ines Duarte"/);
   assert.match(rows[1], /"Houlihan Lokey"/);
   assert.match(rows[1], /"2026-06-08"/, "next action date is exported");
@@ -618,4 +618,95 @@ test("applications sort open ones first, soonest deadline first, undated last", 
   assert.deepEqual(order, ["soon", "later", "undated", "done"]);
   assert.equal(C.appDaysLeft(apps[3], now), 3);
   assert.equal(C.appDaysLeft(apps[1], now), null);
+});
+
+test("emails sent are read off the stage, one count per contact", () => {
+  const k = ctx();
+  const at = (stage, extra) => Object.assign({ stage }, extra);
+  assert.equal(C.emailsSent(at("Not Contacted"), k), 0);
+  assert.equal(C.emailsSent(at("Emailed"), k), 1);
+  assert.equal(C.emailsSent(at("Follow-Up 1"), k), 2);
+  assert.equal(C.emailsSent(at("Follow-Up 2"), k), 3, "3, not 1 + 2 + 3");
+  const people = [at("Emailed"), at("Follow-Up 1"), at("Follow-Up 2"), at("Not Contacted")];
+  assert.equal(C.totalEmails(people, k), 6);
+});
+
+test("moving past outreach keeps the emails already sent", () => {
+  const k = ctx();
+  const c = { stage: "Not Contacted", calls: 0, interactions: [] };
+  C.setStage(c, "Emailed", k);
+  C.setStage(c, "Follow-Up 1", k);
+  C.setStage(c, "Replied", k);
+  assert.equal(C.emailsSent(c, k), 2, "replied after the first bump");
+  C.setStage(c, "Call Done", k);
+  assert.equal(C.emailsSent(c, k), 2);
+  assert.equal(C.callCount(c, k), 1, "and the call is counted");
+  // fixing a misclick backwards corrects the count rather than keeping the peak
+  const d = { stage: "Not Contacted" };
+  C.setStage(d, "Follow-Up 2", k);
+  C.setStage(d, "Emailed", k);
+  assert.equal(C.emailsSent(d, k), 1);
+  // someone who replied without ever sitting on an outreach stage was emailed once
+  assert.equal(C.emailsSent({ stage: "Replied" }, k), 1);
+  assert.equal(C.emailsSent({ stage: "Dead" }, k), 0, "closed out before any email");
+});
+
+test("reply rate is replied-or-further over emailed-or-further", () => {
+  const k = ctx();
+  const r = C.replyRate([
+    { stage: "Not Contacted" },               // in neither
+    { stage: "Emailed" },                     // emailed
+    { stage: "Follow-Up 2" },                 // emailed
+    { stage: "Replied" },                     // both
+    { stage: "Call Done", emailed: 1 },       // both
+    { stage: "Advocate", emailed: 2 },        // both
+    { stage: "Dead", emailed: 3 },            // emailed, never replied
+    { stage: "Dead", emailed: 1, replied: true } // both
+  ], k);
+  assert.deepEqual([r.replied, r.emailed, r.pct], [4, 7, 57]);
+  assert.equal(C.replyRate([], k).pct, null, "no emails, no rate");
+});
+
+test("an older record reads its emails from the stage or the touch count", () => {
+  const out = C.normalizeState({
+    contacts: [
+      { first: "A", last: "A", stage: "Follow-Up 1", touches: 9 },
+      { first: "B", last: "B", stage: "Advocate", touches: 4 },
+      { first: "C", last: "C", stage: "Replied", touches: 0 }
+    ], firms: []
+  });
+  const k = { stages: out.stages, bumpDays: 7, today: "2026-06-01" };
+  assert.deepEqual(out.contacts.map((c) => C.emailsSent(c, k)), [2, 3, 1]);
+});
+
+test("a next action you wrote yourself survives a stage change", () => {
+  const k = ctx();
+  const c = { stage: "Not Contacted", nextAction: "Ask Priya to intro", nextDate: "2026-06-20",
+              nextManual: true, calls: 0, interactions: [] };
+  C.setStage(c, "Emailed", k);
+  assert.equal(c.nextAction, "Ask Priya to intro");
+  assert.equal(c.nextDate, "2026-06-20");
+  assert.equal(c.lastContact, k.today, "the stage still does the rest of its job");
+  assert.equal(C.emailsSent(c, k), 1);
+  c.nextManual = false;
+  C.setStage(c, "Follow-Up 1", k);
+  assert.equal(c.nextAction, "Bump in 7 days", "automatic again once released");
+});
+
+test("call date filters", () => {
+  const now = "2026-06-10";
+  const on = (d) => ({ callDate: d });
+  const m = (c, mode, extra) => C.matchesCallDate(c, Object.assign({ mode }, extra), now);
+  assert.equal(m(on("2026-06-10"), "today"), true);
+  assert.equal(m(on("2026-06-17"), "next7"), true);
+  assert.equal(m(on("2026-06-18"), "next7"), false);
+  assert.equal(m(on("2026-06-05"), "past7"), true);
+  assert.equal(m(on("2026-06-05"), "upcoming"), false);
+  assert.equal(m(on(""), "none"), true);
+  assert.equal(m(on(""), "past"), false);
+  assert.equal(m(on("2026-06-12"), "range", { from: "2026-06-11", to: "2026-06-12" }), true);
+  assert.equal(m(on("2026-06-13"), "range", { from: "2026-06-11", to: "2026-06-12" }), false);
+  assert.equal(m(on("2026-06-13"), ""), true);
+  assert.equal(C.callDateLabel("2026-06-12", now), "in 2d");
+  assert.equal(C.callDateLabel("2026-06-09", now), "yesterday");
 });

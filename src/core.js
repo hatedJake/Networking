@@ -167,10 +167,18 @@
   function applyStageEffects(c, name, ctx) {
     var kind = stageKind(ctx.stages, name);
     var now = ctx.today;
+    /* A next action the user wrote themselves is theirs: the stage still moves
+       the dates and counters below, but it never overwrites their plan. */
+    var keep = c.nextManual && c.nextAction
+      ? { a: c.nextAction, d: c.nextDate } : null;
     if (kind === "outreach") {
       var out = stagesOfKind(ctx.stages, "outreach");
       var isLast = out.length > 1 && out[out.length - 1].name === name;
       c.lastContact = now;
+      /* Where in the run this contact got to, so the emails they were sent
+         still count once they move past outreach. Set, not maxed, so moving
+         back a stage to fix a misclick corrects the count too. */
+      c.emailed = indexOfName(out, name) + 1;
       c.nextAction = isLast ? "Final bump sent — wait" : "Bump in " + ctx.bumpDays + " days";
       c.nextDate = addDays(now, ctx.bumpDays);
     } else if (kind === "replied") {
@@ -199,6 +207,7 @@
     } else if (kind === "new") {
       c.nextAction = "Draft cold intro"; c.nextDate = "";
     }
+    if (keep) { c.nextAction = keep.a; c.nextDate = keep.d; }
     return c;
   }
   function setStage(c, name, ctx) {
@@ -226,6 +235,77 @@
       applyStageEffects(c, c.stage, ctx);
     }
     return c;
+  }
+
+  /* ---------------- emails and replies ----------------
+     Read off the stages rather than a hand-kept tally: a contact on the first
+     outreach stage has had one email, the second two, and so on. Each contact
+     counts once, at the stage they are on — never the sum of every stage they
+     passed through. Once past outreach, they keep the count from the last
+     outreach stage they were on (c.emailed), or at least one, since anyone who
+     replied was written to. */
+  var REPLIED_KINDS = { replied: 1, scheduled: 1, met: 1, won: 1 };
+  function emailsSent(c, ctx) {
+    var kind = stageKind(ctx.stages, c.stage);
+    if (kind === "new" || kind === "") return 0;
+    if (kind === "outreach") return indexOfName(stagesOfKind(ctx.stages, "outreach"), c.stage) + 1;
+    var n = typeof c.emailed === "number" ? c.emailed : 0;
+    return kind === "dead" ? n : Math.max(1, n);
+  }
+  function totalEmails(contacts, ctx) {
+    return contacts.reduce(function (n, c) { return n + emailsSent(c, ctx); }, 0);
+  }
+  /* Replied or further, over emailed or further. A closed-out contact counts
+     as emailed if they were, and as replied only if they had. */
+  function hasReplied(c, ctx) {
+    var kind = stageKind(ctx.stages, c.stage);
+    return !!REPLIED_KINDS[kind] || (kind === "dead" && !!c.replied);
+  }
+  function replyRate(contacts, ctx) {
+    var emailed = 0, replied = 0;
+    contacts.forEach(function (c) {
+      if (emailsSent(c, ctx) > 0) emailed++;
+      if (hasReplied(c, ctx)) replied++;
+    });
+    return { replied: replied, emailed: emailed,
+             pct: emailed ? Math.round(replied / emailed * 100) : null };
+  }
+
+  /* ---------------- call dates ----------------
+     c.callDate is the day of the call: booked ahead for one that is scheduled,
+     or the day it happened. f is {mode, from, to}. */
+  var CALL_FILTERS = [
+    ["", "Any call date"], ["upcoming", "Upcoming calls"], ["today", "Calls today"],
+    ["next7", "Next 7 days"], ["past7", "Last 7 days"], ["past", "Past calls"],
+    ["any", "Has a call date"], ["none", "No call date"], ["range", "Date range…"]
+  ];
+  function matchesCallDate(c, f, now) {
+    var mode = f && f.mode;
+    if (!mode) return true;
+    if (mode === "none") return !c.callDate;
+    if (!c.callDate) return false;
+    var d = daysBetween(now, c.callDate);
+    if (d === null) return false;
+    if (mode === "any") return true;
+    if (mode === "upcoming") return d >= 0;
+    if (mode === "today") return d === 0;
+    if (mode === "next7") return d >= 0 && d <= 7;
+    if (mode === "past7") return d < 0 && d >= -7;
+    if (mode === "past") return d < 0;
+    if (mode === "range") {
+      if (f.from && c.callDate < f.from) return false;
+      if (f.to && c.callDate > f.to) return false;
+      return true;
+    }
+    return true;
+  }
+  function callDateLabel(iso, now) {
+    var d = daysBetween(now, iso);
+    if (d === null) return "";
+    if (d === 0) return "today";
+    if (d === 1) return "tomorrow";
+    if (d === -1) return "yesterday";
+    return d > 0 ? "in " + d + "d" : (-d) + "d ago";
   }
 
   /* ---------------- interaction log ----------------
@@ -385,14 +465,15 @@
   /* ---------------- CSV ---------------- */
   function csvCell(x) { return '"' + String(x == null ? "" : x).replace(/"/g, '""') + '"'; }
   var CSV_HEAD = ["Name", "Firm", "Title", "Group", "Office", "Connection", "Email", "Stage",
-    "Priority", "Last contact", "Next action", "Next action date", "Touches", "Calls",
-    "Replied", "Referral", "Interactions", "Notes"];
+    "Priority", "Last contact", "Next action", "Next action date", "Touches", "Emails sent",
+    "Calls", "Call date", "Replied", "Referral", "Interactions", "Notes"];
   function contactsCsv(contacts, firmName, ctx) {
     var lines = [CSV_HEAD.map(csvCell).join(",")];
     contacts.forEach(function (c) {
       lines.push([fullName(c), firmName(c.firmId), c.title, c.group, c.office, c.connection,
         c.email, c.stage, "P" + c.priority, c.lastContact, c.nextAction, c.nextDate, c.touches,
-        ctx ? callCount(c, ctx) : loggedCalls(c),
+        ctx ? emailsSent(c, ctx) : "",
+        ctx ? callCount(c, ctx) : loggedCalls(c), c.callDate,
         c.replied ? "Yes" : "No", c.referral ? "Yes" : "No",
         interactions(c).map(function (x) { return x.date + " " + x.type + ": " + x.text; }).join(" | "),
         (c.notes || []).map(function (n) { return n.d + ": " + n.t; }).join(" | ")
@@ -484,6 +565,9 @@
       year: asStr(c.year), school: asStr(c.school), linkedin: asStr(c.linkedin),
       stage: asStr(c.stage), priority: (prio < 1 || prio > 3) ? 3 : prio,
       lastContact: asDate(c.lastContact), nextAction: asStr(c.nextAction),
+      nextManual: !!c.nextManual,
+      /* null until normalizeState can read it off the stages */
+      emailed: (c.emailed == null || c.emailed === "") ? null : Math.max(0, asInt(c.emailed, 0)),
       nextDate: asDate(c.nextDate), touches: Math.max(0, asInt(c.touches, 0)),
       replied: !!c.replied, callDate: asDate(c.callDate), referral: !!c.referral,
       tags: asArr(c.tags).map(asStr).filter(Boolean),
@@ -587,8 +671,18 @@
     /* The bare tally only ever inherits calls the log does not already hold, so
        a record migrated from before the log is not counted twice. */
     var ctx = { stages: out.stages, bumpDays: out.settings.bumpDays, today: now };
+    var outN = stagesOfKind(out.stages, "outreach").length;
     out.contacts.forEach(function (c) {
       if (c.calls === null) c.calls = Math.max(0, impliedCalls(c, ctx) - loggedCalls(c));
+      /* Records from before this was kept: an outreach stage says it outright,
+         and past that the touch count is the best record of how far the run
+         went, capped at the number of outreach stages. */
+      if (c.emailed === null) {
+        var kind = stageKind(out.stages, c.stage);
+        c.emailed = kind === "outreach"
+          ? indexOfName(stagesOfKind(out.stages, "outreach"), c.stage) + 1
+          : Math.min(c.touches, outN);
+      }
     });
     return out;
   }
@@ -631,6 +725,9 @@
     appTypeClass: appTypeClass, appStatusClass: appStatusClass,
     appDaysLeft: appDaysLeft, sortApplications: sortApplications,
     normalizeApplication: normalizeApplication,
+    // emails, replies and call dates
+    emailsSent: emailsSent, totalEmails: totalEmails, hasReplied: hasReplied, replyRate: replyRate,
+    CALL_FILTERS: CALL_FILTERS, matchesCallDate: matchesCallDate, callDateLabel: callDateLabel,
     // email
     emailLocalPart: emailLocalPart, guessEmail: guessEmail,
     // templates

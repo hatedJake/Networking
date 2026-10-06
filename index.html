@@ -833,7 +833,8 @@ function stageCount(name){
 var TABS = [["contacts","Contacts"],["firms","Firms"],["applications","Applications"],["compose","Compose"],["settings","Settings"]];
 var route = ssGet("cov.tab") || "contacts";
 var ui = {
-  q:"", stage:"", prio:"", firm:"", needs:false, due:false, sort:"auto", desc:false,
+  q:"", stage:"", prio:"", firm:"", needs:false, due:false, refs:false, sort:"auto", desc:false,
+  callf:"", callFrom:"", callTo:"",
   fq:"", ftarget:"", ftier:"", fgap:false,
   aq:"", atype:"", astatus:"", afirm:"",
   composeTo: ssGet("cov.to"), composeTpl: "", draft:null
@@ -872,21 +873,22 @@ function render(){
 /* ================= CONTACTS ================= */
 function viewContacts(v){
   var cs = state.contacts;
-  var sent = 0, replied = 0, calls = 0, refs = 0, act = 0, due = 0;
+  var calls = 0, refs = 0, act = 0, due = 0;
   cs.forEach(function(c){
-    sent += c.touches || 0;
-    if (c.replied) replied++;
     calls += callCount(c);
     if (c.referral) refs++;
     if (needsAction(c)) act++;
     if (isDue(c)) due++;
   });
-  var emailedPeople = cs.filter(function(c){ return (c.touches||0) > 0; }).length;
-  var rate = emailedPeople ? Math.round(replied / emailedPeople * 100) + "%" : "—";
+  /* Both read off the stages: see emailsSent and replyRate in src/core.js. */
+  var sent = C.totalEmails(cs, ctx());
+  var rr = C.replyRate(cs, ctx());
+  var rate = rr.pct === null ? "—" : rr.pct + "%";
 
   var kp = h("div", {class:"kpis"});
-  [[cs.length,"Contacts"],[sent,"Emails sent"],[rate,"Reply rate"],[calls,"Calls logged"],[refs,"Referrals"]].forEach(function(k){
-    kp.appendChild(h("div",{class:"kpi"},[h("div",{class:"n",text:String(k[0])}),h("div",{class:"k",text:k[1]})]));
+  [[cs.length,"Contacts"],[sent,"Emails sent"],[rate,"Reply rate",rr.replied + " of " + rr.emailed + " emailed contacts are at a replied stage or further"],
+   [calls,"Calls logged"],[refs,"Referrals"]].forEach(function(k){
+    kp.appendChild(h("div",{class:"kpi",title:k[2]||null},[h("div",{class:"n",text:String(k[0])}),h("div",{class:"k",text:k[1]})]));
   });
   kp.appendChild(h("div",{class:"kpi" + (due ? " alert" : "")},[
     h("div",{class:"n",text:String(due)}), h("div",{class:"k",text:"Due / overdue"})
@@ -931,6 +933,31 @@ function viewContacts(v){
   var db2 = h("button",{class:"chip","aria-pressed":ui.due?"true":"false",text:"Due"});
   db2.addEventListener("click", function(){ ui.due = !ui.due; db2.setAttribute("aria-pressed", ui.due?"true":"false"); drawRows(); });
   f.appendChild(db2);
+  var rb = h("button",{class:"chip","aria-pressed":ui.refs?"true":"false",text:"Referrals"});
+  rb.addEventListener("click", function(){ ui.refs = !ui.refs; rb.setAttribute("aria-pressed", ui.refs?"true":"false"); drawRows(); });
+  f.appendChild(rb);
+
+  var csel = h("select",{"aria-label":"Filter by call date"});
+  C.CALL_FILTERS.forEach(function(o){
+    csel.appendChild(h("option",{value:o[0],text:o[1],selected:ui.callf===o[0]?"selected":null}));
+  });
+  var cFrom = h("input",{type:"date",value:ui.callFrom,"aria-label":"Calls from"});
+  var cTo = h("input",{type:"date",value:ui.callTo,"aria-label":"Calls to"});
+  [cFrom, cTo].forEach(function(i){
+    i.style.cssText = "background:var(--card);border:1px solid var(--rule);border-radius:4px;padding:5px 8px;font-size:.84rem";
+  });
+  var range = h("span",{class:"filters",style:"margin:0;gap:6px"},[cFrom, h("span",{class:"count",text:"to"}), cTo]);
+  function showRange(){ range.style.display = ui.callf === "range" ? "" : "none"; }
+  csel.addEventListener("change", function(){
+    ui.callf = csel.value; showRange();
+    /* Picking a call filter sorts by call date too, which is nearly always the point. */
+    if (ui.callf && ui.sort !== "call"){ ui.sort = "call"; ui.desc = ui.callf === "past" || ui.callf === "past7"; resortHead(); }
+    drawRows();
+  });
+  cFrom.addEventListener("change", function(){ ui.callFrom = cFrom.value; drawRows(); });
+  cTo.addEventListener("change", function(){ ui.callTo = cTo.value; drawRows(); });
+  showRange();
+  f.appendChild(csel); f.appendChild(range);
   f.appendChild(h("span",{class:"spacer"}));
   var cnt = h("span",{class:"count"});
   f.appendChild(cnt);
@@ -938,7 +965,8 @@ function viewContacts(v){
 
   var wrap = h("div",{class:"tablewrap"});
   var tbl = h("table");
-  var cols = [["pri","Pri"],["name","Name"],["firm","Firm / Group"],["conn","Connection"],["stage","Stage"],["last","Last touch"],["next","Next action"]];
+  var cols = [["pri","Pri"],["name","Name"],["firm","Firm / Group"],["conn","Connection"],["stage","Stage"],
+              ["call","Call date"],["last","Last touch"],["next","Next action"],["ref","Referral"]];
   var thead = h("thead"); var tr = h("tr");
   cols.forEach(function(c){
     var th = h("th",{class:"sortable",scope:"col",
@@ -972,7 +1000,9 @@ function viewContacts(v){
       if (ui.firm && c.firmId !== ui.firm) return false;
       if (ui.needs && !needsAction(c)) return false;
       if (ui.due && !isDue(c)) return false;
-      if (!ui.stage && !ui.q && stageKind(c.stage) === "dead") return false;
+      if (ui.refs && !c.referral) return false;
+      if (!C.matchesCallDate(c, {mode: ui.callf, from: ui.callFrom, to: ui.callTo}, today())) return false;
+      if (!ui.stage && !ui.q && !ui.callf && !ui.refs && stageKind(c.stage) === "dead") return false;
       if (s){
         var hay = (fullName(c) + " " + firmName(c.firmId) + " " + c.group + " " + c.connection + " " +
           c.title + " " + (c.tags||[]).join(" ") + " " + C.ixHaystack(c)).toLowerCase();
@@ -998,6 +1028,14 @@ function viewContacts(v){
       else if (k === "firm") r = firmName(a.firmId).localeCompare(firmName(b.firmId));
       else if (k === "conn") r = (a.connection||"").localeCompare(b.connection||"");
       else if (k === "stage") r = stageIndex(a.stage) - stageIndex(b.stage);
+      else if (k === "call"){
+        /* Undated sorts to the end in both directions. */
+        if (!a.callDate && !b.callDate) return 0;
+        if (!a.callDate) return 1;
+        if (!b.callDate) return -1;
+        r = a.callDate.localeCompare(b.callDate);
+      }
+      else if (k === "ref") r = (b.referral ? 1 : 0) - (a.referral ? 1 : 0);
       else if (k === "last") r = (Date.parse(a.lastContact||"1970-01-01")||0) - (Date.parse(b.lastContact||"1970-01-01")||0);
       else if (k === "next"){
         /* Soonest due first; anything without a date sorts to the end either way. */
@@ -1016,7 +1054,7 @@ function viewContacts(v){
     var rows = sortRows(filtered());
     cnt.textContent = rows.length + " of " + state.contacts.length;
     if (!rows.length){
-      var td = h("td",{colspan:"7"},[h("div",{class:"empty",text:"No contacts match. Clear the filters, or add someone."})]);
+      var td = h("td",{colspan:String(cols.length)},[h("div",{class:"empty",text:"No contacts match. Clear the filters, or add someone."})]);
       tbody.appendChild(h("tr",{},[td]));
       return;
     }
@@ -1032,6 +1070,15 @@ function viewContacts(v){
       var lastCol = [lastCell];
       if (ixn) lastCol.push(h("span",{class:"sub",text: ixn + (ixn === 1 ? " interaction" : " interactions")}));
       var open = function(){ openContact(c.id); };
+      var callCell = !c.callDate ? h("span",{class:"fresh",text:"\u2014"}) : h("span",{},[
+        document.createTextNode(c.callDate),
+        h("span",{class:"sub" + (c.callDate === today() ? " due" : ""),text:C.callDateLabel(c.callDate, today())})
+      ]);
+      var refBox = h("input",{type:"checkbox","aria-label":"Referral from " + fullName(c),
+        style:"width:15px;height:15px;accent-color:var(--brass);cursor:pointer"});
+      refBox.checked = !!c.referral;
+      refBox.addEventListener("click", function(ev){ ev.stopPropagation(); });
+      refBox.addEventListener("change", function(){ c.referral = refBox.checked; save(); render(); });
       var nameBtn = h("button",{class:"rowbtn",text:fullName(c),"data-rowkey":"c:" + c.id,
         "aria-label":"Open " + fullName(c) + ", " + (firmName(c.firmId) || "no firm") + ", " + c.stage,
         onclick:function(ev){ ev.stopPropagation(); open(); }});
@@ -1042,11 +1089,13 @@ function viewContacts(v){
         h("td",{},[document.createTextNode(firmName(c.firmId) || "—"), h("span",{class:"sub",text:c.group||""})]),
         h("td",{},[document.createTextNode(c.connection || "—")]),
         h("td",{},[h("span",{class:"pill "+stageClass(c.stage),text:c.stage})]),
+        h("td",{class:"num"},[callCell]),
         h("td",{},lastCol),
         h("td",{},[
           document.createTextNode(c.nextAction || "—"),
           dd === null ? null : h("span",{class:"sub" + (dd >= 0 ? " due" : ""),text:dueLabel(dd)})
-        ])
+        ]),
+        h("td",{style:"text-align:center"},[refBox])
       ]);
       tbody.appendChild(tr);
     });
@@ -1211,14 +1260,39 @@ function openContact(id, focusSel){
     fs0.appendChild(rail);
     body.appendChild(fs0);
 
+    /* the plan: what you do next, when the call is, and whether they referred you */
+    var fsp = h("div",{class:"fieldset"},[h("div",{class:"lg",text:"Plan"})]);
+    var gp = h("div",{class:"fgrid"});
+    gp.appendChild(field("Next action", c.nextAction, function(v){
+      c.nextAction = v.trim();
+      c.nextManual = !!c.nextAction;
+      save(); openContact(id); render();
+    }, {wide:true, ph:"Type your own \u2014 e.g. Ask for an intro to the RX team",
+        hint: c.nextManual && c.nextAction
+          ? "Written by you \u2014 stage changes leave it alone. Clear it to go back to automatic."
+          : "Filled in from the stage. Type over it and it stays put."}));
+    gp.appendChild(field("Next action date", c.nextDate, function(v){ c.nextDate=v; save(); render(); }, {type:"date"}));
+    gp.appendChild(field("Call date", c.callDate, function(v){ c.callDate=v; save(); render(); },
+      {type:"date", hint:"When it\u2019s booked for, or the day it happened"}));
+    fsp.appendChild(gp);
+    var rcb = h("input",{type:"checkbox"});
+    rcb.checked = !!c.referral;
+    rcb.addEventListener("change", function(){ c.referral = rcb.checked; save(); render(); });
+    fsp.appendChild(h("label",{class:"checkline"},[rcb, document.createTextNode("Gave me a referral")]));
+    body.appendChild(fsp);
+
     /* quick actions */
     var qa = h("div",{class:"filters"});
     qa.appendChild(h("button",{class:"btn sm",text:"Log email sent today",onclick:function(){
       logEmail(c); save(); openContact(id); render(); toast("Logged — " + c.stage);
     }}));
     qa.appendChild(h("button",{class:"btn sm",text:"Mark replied",onclick:function(){
-      c.replied = true; c.stage = "Replied"; c.lastContact = today();
-      c.nextAction = "Propose call times"; save(); openContact(id); render();
+      /* By kind, not by name: a renamed reply stage used to strand the contact
+         on a stage called "Replied" that the pipeline no longer had. */
+      var rs = stagesOfKind("replied");
+      if (!rs.length){ toast("No stage is set up as a reply \u2014 see Settings \u2192 Stages"); return; }
+      setStage(c, rs[0].name); c.lastContact = today();
+      save(); openContact(id); render();
     }}));
     qa.appendChild(h("button",{class:"btn sm",text:"Log call today",onclick:function(){
       logInteractionForm(c.id, null, "Call");
@@ -1333,20 +1407,18 @@ function openContact(id, focusSel){
     var g3 = h("div",{class:"fgrid"});
     g3.appendChild(field("Priority", "P"+c.priority, function(v){ c.priority = parseInt(v.replace("P",""),10)||3; save(); render(); }, {type:"select", options:["P1","P2","P3"]}));
     g3.appendChild(field("Last contact", c.lastContact, function(v){ c.lastContact=v; save(); render(); }, {type:"date"}));
-    g3.appendChild(field("Next action", c.nextAction, function(v){ c.nextAction=v; save(); render(); }, {wide:true, ph:"Draft cold intro"}));
-    g3.appendChild(field("Next action date", c.nextDate, function(v){ c.nextDate=v; save(); }, {type:"date"}));
-    g3.appendChild(field("Last call date", c.callDate, function(v){ c.callDate=v; save(); render(); }, {type:"date"}));
     var lg = loggedCalls(c);
     g3.appendChild(field("Calls not in the log", bareCalls(c), function(v){
       c.calls = Math.max(0, parseInt(v,10)||0); save(); openContact(id); render();
     }, {type:"number", hint: lg
       ? lg + (lg === 1 ? " call" : " calls") + " logged above \u00b7 " + callCount(c) + " in total"
       : "Calls from before the log, or ones you would rather not write up"}));
-    g3.appendChild(field("Touches", c.touches, function(v){ c.touches=parseInt(v,10)||0; save(); render(); }, {type:"number"}));
+    g3.appendChild(field("Touches", c.touches, function(v){ c.touches=parseInt(v,10)||0; save(); render(); },
+      {type:"number", hint:"Your own tally. Emails sent counts from the stage instead"}));
     g3.appendChild(field("Tags", (c.tags||[]).join(", "), function(v){ c.tags = v.split(",").map(function(x){return x.trim();}).filter(Boolean); save(); }, {wide:true, ph:"comma separated"}));
     fs3.appendChild(g3);
     var checks = h("div",{class:"fgrid"});
-    [["Replied","replied"],["Referral given","referral"]].forEach(function(p){
+    [["Replied","replied"]].forEach(function(p){
       var cb = h("input",{type:"checkbox"});
       cb.checked = !!c[p[1]];
       cb.addEventListener("change", function(){ c[p[1]] = cb.checked; save(); render(); });
@@ -1506,7 +1578,7 @@ function addContactForm(){
   var body = h("div",{class:"modal-body"});
   body.appendChild(datalists());
 
-  var vals = {name:"", firm:"", title:"", group:"", office:"", conn:"", email:"", prio:"2", note:""};
+  var vals = {name:"", firm:"", title:"", group:"", office:"", conn:"", email:"", prio:"2", note:"", next:""};
   var nameIn = h("input",{type:"text",placeholder:"Full name",autofocus:"autofocus"});
   nameIn.addEventListener("input", function(){ vals.name = nameIn.value; });
   body.appendChild(h("div",{class:"f wide bigname"},[h("label",{text:"Name"}), nameIn]));
@@ -1534,6 +1606,7 @@ function addContactForm(){
   mk("Connection","conn",{list:"dl-conn",ph:"Alumni, referral, club…"});
   mk("Email","email",{ph:"optional"});
   mk("Priority","prio",{type:"select",options:[["1","P1 — move the needle"],["2","P2 — worth effort"],["3","P3 — volume"]]});
+  mk("Next action","next",{wide:true,ph:"Optional \u2014 leave blank for \u201cDraft cold intro\u201d"});
   body.appendChild(g);
 
   var noteTa = h("textarea",{placeholder:"How you know them, what to mention…"});
@@ -1550,8 +1623,9 @@ function addContactForm(){
       id: uid("c"), first: parts[0], last: parts.slice(1).join(" "),
       firmId: firmIdFor(vals.firm), title: vals.title, group: vals.group, office: vals.office,
       connection: vals.conn, email: vals.email, emailConf: vals.email ? "pattern" : "unknown",
-      year:"", school:"", linkedin:"", stage:"Not Contacted", priority: parseInt(vals.prio,10)||3,
-      lastContact:"", nextAction:"Draft cold intro", nextDate:"", touches:0, replied:false,
+      year:"", school:"", linkedin:"", stage:state.stages[0].name, priority: parseInt(vals.prio,10)||3,
+      lastContact:"", nextAction: vals.next.trim() || "Draft cold intro", nextManual: !!vals.next.trim(),
+      nextDate:"", touches:0, emailed:0, replied:false,
       calls:0, callDate:"", referral:false, tags:[], interactions:[],
       notes: vals.note.trim() ? [{d:today(), t:vals.note.trim()}] : []
     };

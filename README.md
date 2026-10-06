@@ -64,6 +64,32 @@ never counts it twice. Firms show the total across their contacts, which is why
 the Firms table counts calls rather than replies — a reply is a means, a call
 is the outcome.
 
+## Emails sent and reply rate
+
+Both are read off the stages, not a hand-kept tally. Each contact counts once,
+at the stage they are on: the first outreach stage is one email, the second two,
+the third three — so someone on Follow-Up 2 is three emails, never 1 + 2 + 3.
+Once a contact moves past outreach they keep the count from the last outreach
+stage they were on, and anyone who replied counts as at least one. Moving a
+contact back a stage to fix a misclick corrects the count rather than keeping
+the higher one. Records from before this read their count from the touch tally,
+capped at the number of outreach stages.
+
+Reply rate is the contacts at a replied stage or further (replied, call booked,
+call happened, advocate) over the contacts who have been emailed at all. A
+closed-out contact counts as emailed if they were, and as replied only if they
+had.
+
+## The plan block
+
+At the top of each contact, under the stage: the next action, its date, the
+call date, and whether they gave you a referral. The next action fills itself in
+from the stage until you type your own; from then on stage changes leave it
+alone, and clearing it hands it back. The call date is the day a call is booked
+for, or the day it happened; the Contacts table shows it as a column you can
+sort, and the call-date filter narrows to upcoming, today, the next or last
+seven days, past, or any range you pick.
+
 ## Applications
 
 The Applications tab tracks what is open at each firm — applications, early
